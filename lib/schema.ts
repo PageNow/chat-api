@@ -62,7 +62,7 @@ export const ChatSchema = (): AppSync.Schema => {
     });
     const conversationGqlType = typeFromObject(conversation);
 
-    const userConversations = new AppSync.ObjectType("UserConversations", {
+    const userConversation = new AppSync.ObjectType("UserConversation", {
         definition: {
             // associated: [UserConversations]
             conversation: conversationGqlType,
@@ -70,21 +70,21 @@ export const ChatSchema = (): AppSync.Schema => {
             userId: userId
         }
     });
-    const userConversationsGqlType = typeFromObject(userConversations);
-    const userConversationsArrGqlType = typeFromObject(userConversations, { isList: true });
+    const userConversationGqlType = typeFromObject(userConversation);
+    const userConversationArrGqlType = typeFromObject(userConversation, { isList: true });
 
-    const userConversationsConnection = new AppSync.ObjectType("UserConversationsConnection", {
+    const userConversationConnection = new AppSync.ObjectType("UserConversationConnection", {
         definition: {
             nextToken: AppSync.GraphqlType.string(),
-            userConversations: userConversationsArrGqlType
+            userConversation: userConversationArrGqlType
         }
     });
 
     schema.addType(conversation);
     schema.addType(message);
     schema.addType(messageConnection);
-    schema.addType(userConversations);
-    schema.addType(userConversationsConnection);
+    schema.addType(userConversation);
+    schema.addType(userConversationConnection);
 
     /* Add queries to the schema */
     
@@ -145,8 +145,8 @@ export const ChatSchema = (): AppSync.Schema => {
 
     // Put a single value of type 'UserConversations'. If an item does not exist with the same key the item will be created.
     // If there exists an item at that key already, it will be updated.
-    schema.addMutation("createUserConversations", new AppSync.Field({
-        returnType: userConversationsGqlType,
+    schema.addMutation("createUserConversation", new AppSync.Field({
+        returnType: userConversationGqlType,
         args: {
             conversationId: conversationId,
             userId: userId
@@ -162,10 +162,10 @@ export const ChatSchema = (): AppSync.Schema => {
         directives: [ AppSync.Directive.subscribe("createMessage") ]
     }));
 
-    schema.addSubscription("subscribeToNewUserConversations", new AppSync.Field({
-        returnType: userConversationsGqlType,
+    schema.addSubscription("subscribeToNewUserConversation", new AppSync.Field({
+        returnType: userConversationGqlType,
         args: { userId: userId },
-        directives: [ AppSync.Directive.subscribe("createUserConversations") ]
+        directives: [ AppSync.Directive.subscribe("createUserConversation") ]
     }));
 
     return schema;

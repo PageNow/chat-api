@@ -4,6 +4,11 @@ import * as AppSync from '@aws-cdk/aws-appsync';
 import * as Cognito from '@aws-cdk/aws-cognito';
 
 import { ChatSchema } from './schema';
+import {
+    createConversationRequestStr, createMessageRequestStr, createUserConversationRequestStr,
+    conversationUserConversationRequestStr, allMessagesConnectionRequestStr,
+    allMessagesConnectionResponseStr, allMessagesRequestStr, allMessagesFromRequestStr
+} from './map-template-str';
 
 export class ChatApiStack extends CDK.Stack {
 
@@ -12,7 +17,7 @@ export class ChatApiStack extends CDK.Stack {
     constructor(scope: CDK.Construct, id: string, props?: CDK.StackProps) {
         super(scope, id, props);
 
-        const conversationsTable = new DDB.Table(this, 'ConversationsTable', {
+        const conversationTable = new DDB.Table(this, 'ConversationTable', {
             billingMode: DDB.BillingMode.PAY_PER_REQUEST,
             partitionKey: {
                 name: "id",
@@ -20,7 +25,7 @@ export class ChatApiStack extends CDK.Stack {
             }
         });
 
-        const messagesTable = new DDB.Table(this, 'MessagesTable', {
+        const messageTable = new DDB.Table(this, 'MessageTable', {
             billingMode: DDB.BillingMode.PAY_PER_REQUEST,
             partitionKey: {
                 name: "conversationId",
@@ -32,7 +37,7 @@ export class ChatApiStack extends CDK.Stack {
             }
         });
 
-        const userConversationsTable = new DDB.Table(this, 'UserConversationsTable', {
+        const userConversationTable = new DDB.Table(this, 'UserConversationTable', {
             billingMode: DDB.BillingMode.PAY_PER_REQUEST,
             partitionKey: {
                 name: "userId",
@@ -43,7 +48,7 @@ export class ChatApiStack extends CDK.Stack {
                 type: DDB.AttributeType.STRING
             }
         });
-        userConversationsTable.addGlobalSecondaryIndex({
+        userConversationTable.addGlobalSecondaryIndex({
             indexName: "conversationId-index",
             partitionKey: {
                 name: "conversationId",
@@ -76,51 +81,59 @@ export class ChatApiStack extends CDK.Stack {
         /*
          * Add resolvers
          */
-        const conversationsDS = this.api.addDynamoDbDataSource("conversationsDS", conversationsTable);
-        const messagesDS = this.api.addDynamoDbDataSource("messagesDS", messagesTable);
-        const userConversationsDS = this.api.addDynamoDbDataSource("userConversationsDS", userConversationsTable);
+        const conversationDS = this.api.addDynamoDbDataSource("conversationDS", conversationTable);
+        const messageDS = this.api.addDynamoDbDataSource("messageDS", messageTable);
+        const userConversationDS = this.api.addDynamoDbDataSource("userConversationDS", userConversationTable);
 
-        conversationsDS.createResolver({
+        conversationDS.createResolver({
             typeName: "Mutation",
             fieldName: "createConversation",
-            requestMappingTemplate: AppSync.MappingTemplate.fromString(`
-                {
-                    "version" : "2017-02-28",
-                    "operation" : "PutItem",
-                    "key": {
-                        "id": { "S" : "\${context.arguments.id}"}
-                    },
-                    "attributeValues" : {
-                    "id": {  "S": "\${context.arguments.id}" },
-                    "name": {  "S": "\${context.arguments.name}" }
-                    #if(\${context.arguments.createdAt}) ,"createdAt": { "S": "\${context.arguments.createdAt}"} #end
-                    }
-                }
-            `),
+            requestMappingTemplate: AppSync.MappingTemplate.fromString(createConversationRequestStr),
             responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultItem()
         });
 
-        conversationsDS.createResolver({
+        messageDS.createResolver({
+            typeName: "Mutation",
+            fieldName: "createMessage",
+            requestMappingTemplate: AppSync.MappingTemplate.fromString(createMessageRequestStr),
+            responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultItem()
+        });
+
+        userConversationDS.createResolver({
+            typeName: "Mutation",
+            fieldName: "createUserConversation",
+            requestMappingTemplate: AppSync.MappingTemplate.fromString(createUserConversationRequestStr),
+            responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultItem()
+        });
+
+        conversationDS.createResolver({
+            typeName: "UserConversation",
+            fieldName: "conversation",
+            requestMappingTemplate: AppSync.MappingTemplate.fromString(conversationUserConversationRequestStr),
+            responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultItem()
+        });
+
+        messageDS.createResolver({
+            typeName: "Query",
+            fieldName: "allMessagesConnection",
+            requestMappingTemplate: AppSync.MappingTemplate.fromString(allMessagesConnectionRequestStr),
+            responseMappingTemplate: AppSync.MappingTemplate.fromString(allMessagesConnectionResponseStr)
+        });
+
+        messageDS.createResolver({
             typeName: "Query",
             fieldName: "allMessages",
-            requestMappingTemplate: AppSync.MappingTemplate.fromString(`
-                {
-                    "version" : "2017-02-28",
-                    "operation" : "Query",
-                    "query" : {
-                        "expression": "conversationId = :id",
-                        "expressionValues" : {
-                            ":id" : {
-                                "S" : "\${context.arguments.conversationId}"
-                            }
-                        }
-                    },
-                    "limit": #if(\${context.arguments.first}) \${context.arguments.first} #else 20 #end,
-                    "nextToken": #if(\${context.arguments.after}) "\${context.arguments.after}" #else null #end
-                }
-            `),
+            requestMappingTemplate: AppSync.MappingTemplate.fromString(allMessagesRequestStr),
             responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultList()
         });
+
+        messageDS.createResolver({
+            typeName: "Query",
+            fieldName: "allMessagesFrom",
+            requestMappingTemplate: AppSync.MappingTemplate.fromString(allMessagesFromRequestStr),
+            responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultList()
+        })
+
 
         new CDK.CfnOutput(this, "chat-api", {
             value: this.api.graphqlUrl,
