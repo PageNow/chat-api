@@ -90,7 +90,7 @@ export const ChatSchema = (): AppSync.Schema => {
     
     // Scan through all values of type 'Message'. Use the 'after' and 'before' arguments with the
     // 'nextToken' returned by the 'MessageConnection' result to fetch pages.
-    schema.addQuery("allMessage", new AppSync.Field({
+    schema.addQuery("allMessages", new AppSync.Field({
         returnType: messageArrGqlType,
         args: {
             after: AppSync.GraphqlType.string(),
@@ -101,7 +101,7 @@ export const ChatSchema = (): AppSync.Schema => {
 
     // Scan through all values of type 'MessageConnection'. Use the 'after' and 'before' arguments with the
     // 'nextToken' returned by the 'MessageConnectionConnection' result to fetch pages.
-    schema.addQuery("allMessageConnection", new AppSync.Field({
+    schema.addQuery("allMessagesConnection", new AppSync.Field({
         returnType: messageConnectionGqlType,
         args: {
             after: AppSync.GraphqlType.string(),
@@ -110,7 +110,7 @@ export const ChatSchema = (): AppSync.Schema => {
         }
     }));
 
-    schema.addQuery("allMessageFrom", new AppSync.Field({
+    schema.addQuery("allMessagesFrom", new AppSync.Field({
         returnType: messageArrGqlType,
         args: {
             after: AppSync.GraphqlType.string(),
