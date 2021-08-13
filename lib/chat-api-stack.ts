@@ -1,5 +1,6 @@
 import * as CDK from '@aws-cdk/core';
 import * as DDB from '@aws-cdk/aws-dynamodb';
+import * as IAM from '@aws-cdk/aws-iam';
 import * as AppSync from '@aws-cdk/aws-appsync';
 import * as Cognito from '@aws-cdk/aws-cognito';
 
@@ -78,7 +79,24 @@ export class ChatApiStack extends CDK.Stack {
             logConfig: { fieldLogLevel: AppSync.FieldLogLevel.ALL }
         });
 
-        /*
+        /**
+         * Add IAM role/policy
+         */
+        const apiDynamoDBRole = new IAM.Role(this, 'AppSyncDynamoDBRole', {
+            assumedBy: new IAM.ServicePrincipal('appsync.amazonaws.com')
+        });
+        apiDynamoDBRole.addToPolicy(new IAM.PolicyStatement({
+            effect: IAM.Effect.ALLOW,
+            resources: [
+                conversationTable.tableArn,
+                messageTable.tableArn,
+                userConversationTable.tableArn,
+                `${userConversationTable.tableArn}/index/conversationId-index`
+            ],
+            actions: ["dynamodb:*"]
+        }));
+
+        /**
          * Add resolvers
          */
         const conversationDS = this.api.addDynamoDbDataSource("conversationDS", conversationTable);
@@ -132,8 +150,7 @@ export class ChatApiStack extends CDK.Stack {
             fieldName: "allMessagesFrom",
             requestMappingTemplate: AppSync.MappingTemplate.fromString(allMessagesFromRequestStr),
             responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultList()
-        })
-
+        });
 
         new CDK.CfnOutput(this, "chat-api", {
             value: this.api.graphqlUrl,
@@ -141,10 +158,10 @@ export class ChatApiStack extends CDK.Stack {
             exportName: "chatApiEndpoint"
         });
 
-        new CDK.CfnOutput(this, "region", {
-            value: process.env.CDK_DEFAULT_REGION || '',
-            description: "Chat api region",
-            exportName: "region"
-        });
+        // new CDK.CfnOutput(this, "region", {
+        //     value: process.env.CDK_DEFAULT_REGION || '',
+        //     description: "Chat api region",
+        //     exportName: "region"
+        // });
     }
 }

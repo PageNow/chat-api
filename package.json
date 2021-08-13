@@ -8,7 +8,8 @@
     "build": "tsc",
     "watch": "tsc -w",
     "test": "jest",
-    "cdk": "cdk"
+    "cdk": "cdk",
+    "deploy": "tsc && cdk deploy --outputs-file chat-api.json"
   },
   "devDependencies": {
     "@aws-cdk/assert": "1.117.0",
@@ -24,6 +25,7 @@
     "@aws-cdk/aws-appsync": "^1.117.0",
     "@aws-cdk/aws-cognito": "^1.117.0",
     "@aws-cdk/aws-dynamodb": "^1.117.0",
+    "@aws-cdk/aws-iam": "^1.117.0",
     "@aws-cdk/core": "1.117.0",
     "source-map-support": "^0.5.16"
   }

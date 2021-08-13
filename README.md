@@ -23,3 +23,4 @@ The `cdk.json` file tells the CDK Toolkit how to execute your app.
 * https://docs.aws.amazon.com/cdk/api/latest/docs/aws-dynamodb-readme.html#amazon-dynamodb-construct-library
 * https://appsync-immersionday.workshop.aws/lab1/2_deploy-with-cdk.html
 * https://docs.aws.amazon.com/cdk/api/latest/python/aws_cdk.aws_appsync/README.html
+* https://github.com/aws-samples/aws-cdk-examples/blob/master/typescript/appsync-graphql-dynamodb/index.ts
