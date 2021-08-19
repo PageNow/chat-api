@@ -118,3 +118,13 @@ export const allMessagesFromRequestStr = `
         "nextToken": #if(\${context.arguments.after}) "\${context.arguments.after}" #else null #end
     }
 `;
+
+export const userPairConversationRequestStr = `
+    {
+        "version" : "2017-02-28",
+        "operation" : "GetItem",
+        "key" : {
+            "userPairId" : { "S" : "\${context.arguments.userPairId}" }
+        }
+    }
+`;

@@ -80,11 +80,22 @@ export const ChatSchema = (): AppSync.Schema => {
         }
     });
 
+    // used to retrieve conversation id of dms between a pair of users
+    const userPairId = AppSync.GraphqlType.id({ isRequired: true });
+    const userPairConversation = new AppSync.ObjectType("UserPairConversation", {
+        definition: {
+            userPairId,
+            conversationId: AppSync.GraphqlType.string()
+        }
+    });
+    const userPairConversationGqlType = typeFromObject(userPairConversation);
+
     schema.addType(conversation);
     schema.addType(message);
     schema.addType(messageConnection);
     schema.addType(userConversation);
     schema.addType(userConversationConnection);
+    schema.addType(userPairConversation);
 
     /* Add queries to the schema */
     
@@ -117,6 +128,13 @@ export const ChatSchema = (): AppSync.Schema => {
             conversationId: conversationId,
             first: AppSync.GraphqlType.int(),
             sender: AppSync.GraphqlType.string({ isRequired: true })
+        }
+    }));
+
+    schema.addQuery("userPairConversation", new AppSync.Field({
+        returnType: userPairConversationGqlType,
+        args: {
+            userPairId
         }
     }));
 

@@ -1,19 +1,41 @@
+import * as path from "path";
+
 import * as CDK from '@aws-cdk/core';
 import * as DDB from '@aws-cdk/aws-dynamodb';
 import * as IAM from '@aws-cdk/aws-iam';
 import * as AppSync from '@aws-cdk/aws-appsync';
 import * as Cognito from '@aws-cdk/aws-cognito';
+import * as Lambda from '@aws-cdk/aws-lambda';
 
 import { ChatSchema } from './schema';
 import {
     createConversationRequestStr, createMessageRequestStr, createUserConversationRequestStr,
     conversationUserConversationRequestStr, allMessagesConnectionRequestStr,
-    allMessagesConnectionResponseStr, allMessagesRequestStr, allMessagesFromRequestStr
+    allMessagesConnectionResponseStr, allMessagesRequestStr, allMessagesFromRequestStr,
+    userPairConversationRequestStr
 } from './map-template-str';
 
 export class ChatApiStack extends CDK.Stack {
 
     readonly api: AppSync.GraphqlApi;
+
+    // Lambda functions are stored by name
+    private functions: { [key: string]: Lambda.Function } = {};
+
+    /**
+     * Adds a Lambda Function to an internal list of functions indexed by name.
+     * The function code is assumed to be located in `../src/functions/${name}.js`.
+     *  
+     * @param name - name of the function
+     */
+     private addFunction = (name: string): void => {
+        const fn = new Lambda.Function(this, name, {
+            code: Lambda.Code.fromAsset(path.resolve(__dirname, `../src/functions/${name}`)),
+            runtime: Lambda.Runtime.NODEJS_12_X,
+            handler: `${name}.handler`
+        });
+        this.functions[name] = fn;
+    };
 
     constructor(scope: CDK.Construct, id: string, props?: CDK.StackProps) {
         super(scope, id, props);
@@ -57,6 +79,18 @@ export class ChatApiStack extends CDK.Stack {
             }
         });
 
+        const userPairConversationTable = new DDB.Table(this, 'UserPairConversationTable', {
+            billingMode: DDB.BillingMode.PAY_PER_REQUEST,
+            partitionKey: {
+                name: "userPairId",
+                type: DDB.AttributeType.STRING
+            },
+            sortKey: {
+                name: "conversationId",
+                type: DDB.AttributeType.STRING
+            }
+        });
+
         /**
          * Retrieve existing user pool
          */
@@ -82,8 +116,11 @@ export class ChatApiStack extends CDK.Stack {
         /**
          * Add IAM role/policy
          */
-        const apiDynamoDBRole = new IAM.Role(this, 'AppSyncDynamoDBRole', {
-            assumedBy: new IAM.ServicePrincipal('appsync.amazonaws.com')
+        const apiDynamoDBRole = new IAM.Role(this, 'FullDynamoDBRole', {
+            assumedBy: new IAM.CompositePrincipal(
+                new IAM.ServicePrincipal('appsync.amazonaws.com'),
+                new IAM.ServicePrincipal('lambda.amazonaws.com')
+            )
         });
         apiDynamoDBRole.addToPolicy(new IAM.PolicyStatement({
             effect: IAM.Effect.ALLOW,
@@ -91,7 +128,8 @@ export class ChatApiStack extends CDK.Stack {
                 conversationTable.tableArn,
                 messageTable.tableArn,
                 userConversationTable.tableArn,
-                `${userConversationTable.tableArn}/index/conversationId-index`
+                `${userConversationTable.tableArn}/index/conversationId-index`,
+                userPairConversationTable.tableArn
             ],
             actions: ["dynamodb:*"]
         }));
@@ -102,6 +140,7 @@ export class ChatApiStack extends CDK.Stack {
         const conversationDS = this.api.addDynamoDbDataSource("conversationDS", conversationTable);
         const messageDS = this.api.addDynamoDbDataSource("messageDS", messageTable);
         const userConversationDS = this.api.addDynamoDbDataSource("userConversationDS", userConversationTable);
+        const userPairConversationDS = this.api.addDynamoDbDataSource("userPairConversationDS", userPairConversationTable);
 
         conversationDS.createResolver({
             typeName: "Mutation",
@@ -150,6 +189,13 @@ export class ChatApiStack extends CDK.Stack {
             fieldName: "allMessagesFrom",
             requestMappingTemplate: AppSync.MappingTemplate.fromString(allMessagesFromRequestStr),
             responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultList()
+        });
+
+        userPairConversationDS.createResolver({
+            typeName: "Query",
+            fieldName: "userPairConversation",
+            requestMappingTemplate: AppSync.MappingTemplate.fromString(userPairConversationRequestStr),
+            responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultItem()
         });
 
         new CDK.CfnOutput(this, "chat-api", {

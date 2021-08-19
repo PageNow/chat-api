@@ -17,6 +17,8 @@ The `cdk.json` file tells the CDK Toolkit how to execute your app.
 
 * https://docs.aws.amazon.com/cdk/api/latest/docs/aws-appsync-readme.html#Object-Types
 * https://aws.amazon.com/ko/blogs/mobile/building-scalable-graphql-apis-on-aws-with-cdk-and-aws-appsync/
+* https://www.theelastic.guru/rosius/build-a-graphql-api-on-aws-with-cdk-python-appsync-and-dynamodb-part-1-1pjl
+
 
 ### CDK-DynamoDB
 
@@ -24,3 +26,4 @@ The `cdk.json` file tells the CDK Toolkit how to execute your app.
 * https://appsync-immersionday.workshop.aws/lab1/2_deploy-with-cdk.html
 * https://docs.aws.amazon.com/cdk/api/latest/python/aws_cdk.aws_appsync/README.html
 * https://github.com/aws-samples/aws-cdk-examples/blob/master/typescript/appsync-graphql-dynamodb/index.ts
+* https://medium.com/@sam.goodwin1989/type-safe-infrastructure-part-2-graphql-apis-with-aws-appsync-d1225e4e21e3
