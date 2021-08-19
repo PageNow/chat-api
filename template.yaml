@@ -56,6 +56,73 @@ Resources:
     DeletionPolicy: Retain
     Metadata:
       aws:cdk:path: ChatApiStack/UserConversationTable/Resource
+  UserPairConversationTableACDCC81E:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      KeySchema:
+        - AttributeName: userPairId
+          KeyType: HASH
+        - AttributeName: conversationId
+          KeyType: RANGE
+      AttributeDefinitions:
+        - AttributeName: userPairId
+          AttributeType: S
+        - AttributeName: conversationId
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+    UpdateReplacePolicy: Retain
+    DeletionPolicy: Retain
+    Metadata:
+      aws:cdk:path: ChatApiStack/UserPairConversationTable/Resource
+  createconversationServiceRole140FECC6:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+        Version: "2012-10-17"
+      ManagedPolicyArns:
+        - Fn::Join:
+            - ""
+            - - "arn:"
+              - Ref: AWS::Partition
+              - :iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+    Metadata:
+      aws:cdk:path: ChatApiStack/create_conversation/ServiceRole/Resource
+  createconversationAF5C4C2E:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket:
+          Ref: AssetParameters808b4d5b337735a600811dfe5feace53d8a9ed767158812e65e4b2786713482bS3BucketFE6CBA19
+        S3Key:
+          Fn::Join:
+            - ""
+            - - Fn::Select:
+                  - 0
+                  - Fn::Split:
+                      - "||"
+                      - Ref: AssetParameters808b4d5b337735a600811dfe5feace53d8a9ed767158812e65e4b2786713482bS3VersionKey5C1E85EF
+              - Fn::Select:
+                  - 1
+                  - Fn::Split:
+                      - "||"
+                      - Ref: AssetParameters808b4d5b337735a600811dfe5feace53d8a9ed767158812e65e4b2786713482bS3VersionKey5C1E85EF
+      Role:
+        Fn::GetAtt:
+          - createconversationServiceRole140FECC6
+          - Arn
+      Handler: create_conversation.handler
+      Runtime: nodejs12.x
+    DependsOn:
+      - createconversationServiceRole140FECC6
+    Metadata:
+      aws:cdk:path: ChatApiStack/create_conversation/Resource
+      aws:asset:path: /Users/ylee/pagenow/chat-api/src/functions/create_conversation
+      aws:asset:property: Code
   ChatAPIApiLogsRole65906F60:
     Type: AWS::IAM::Role
     Properties:
@@ -136,10 +203,15 @@ Resources:
           nextToken: String
           userConversation: [UserConversation]
         }
+        type UserPairConversation {
+          userPairId: ID!
+          conversationId: String
+        }
         type Query {
           allMessages(after: String conversationId: ID! first: Int): [Message]
           allMessagesConnection(after: String conversationId: ID! first: Int): MessageConnection
           allMessagesFrom(after: String conversationId: ID! first: Int sender: String!): [Message]
+          userPairConversation(userPairId: ID!): UserPairConversation
         }
         type Mutation {
           createConversation(createdAt: String id: ID! name: String!): Conversation
@@ -215,37 +287,6 @@ Resources:
           - Arn
     Metadata:
       aws:cdk:path: ChatApiStack/ChatAPI/conversationDS/Resource
-  ChatAPIconversationDSMutationcreateConversationResolverF456B27B:
-    Type: AWS::AppSync::Resolver
-    Properties:
-      ApiId:
-        Fn::GetAtt:
-          - ChatAPID12E9E7A
-          - ApiId
-      FieldName: createConversation
-      TypeName: Mutation
-      DataSourceName: conversationDS
-      Kind: UNIT
-      RequestMappingTemplate: |2
-        
-            {
-                "version" : "2017-02-28",
-                "operation" : "PutItem",
-                "key": {
-                    "id": { "S" : "${context.arguments.id}"}
-                },
-                "attributeValues" : {
-                "id": {  "S": "${context.arguments.id}" },
-                "name": {  "S": "${context.arguments.name}" }
-                #if(${context.arguments.createdAt}) ,"createdAt": { "S": "${context.arguments.createdAt}"} #end
-                }
-            }
-      ResponseMappingTemplate: $util.toJson($ctx.result)
-    DependsOn:
-      - ChatAPIconversationDS8E85B190
-      - ChatAPISchemaE04B1A3A
-    Metadata:
-      aws:cdk:path: ChatApiStack/ChatAPI/conversationDS/MutationcreateConversationResolver/Resource
   ChatAPIconversationDSUserConversationconversationResolver9B8DA0CB:
     Type: AWS::AppSync::Resolver
     Properties:
@@ -573,7 +614,7 @@ Resources:
       - ChatAPIuserConversationDSB89FD89A
     Metadata:
       aws:cdk:path: ChatApiStack/ChatAPI/userConversationDS/MutationcreateUserConversationResolver/Resource
-  AppSyncDynamoDBRoleBDD57878:
+  ChatAPIuserPairConversationDSServiceRole5FA54A76:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -584,8 +625,162 @@ Resources:
               Service: appsync.amazonaws.com
         Version: "2012-10-17"
     Metadata:
-      aws:cdk:path: ChatApiStack/AppSyncDynamoDBRole/Resource
-  AppSyncDynamoDBRoleDefaultPolicyC10FF97B:
+      aws:cdk:path: ChatApiStack/ChatAPI/userPairConversationDS/ServiceRole/Resource
+  ChatAPIuserPairConversationDSServiceRoleDefaultPolicy39994084:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - dynamodb:BatchGetItem
+              - dynamodb:GetRecords
+              - dynamodb:GetShardIterator
+              - dynamodb:Query
+              - dynamodb:GetItem
+              - dynamodb:Scan
+              - dynamodb:ConditionCheckItem
+              - dynamodb:BatchWriteItem
+              - dynamodb:PutItem
+              - dynamodb:UpdateItem
+              - dynamodb:DeleteItem
+            Effect: Allow
+            Resource:
+              - Fn::GetAtt:
+                  - UserPairConversationTableACDCC81E
+                  - Arn
+              - Ref: AWS::NoValue
+        Version: "2012-10-17"
+      PolicyName: ChatAPIuserPairConversationDSServiceRoleDefaultPolicy39994084
+      Roles:
+        - Ref: ChatAPIuserPairConversationDSServiceRole5FA54A76
+    Metadata:
+      aws:cdk:path: ChatApiStack/ChatAPI/userPairConversationDS/ServiceRole/DefaultPolicy/Resource
+  ChatAPIuserPairConversationDS1CD48A8A:
+    Type: AWS::AppSync::DataSource
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+          - ChatAPID12E9E7A
+          - ApiId
+      Name: userPairConversationDS
+      Type: AMAZON_DYNAMODB
+      DynamoDBConfig:
+        AwsRegion:
+          Ref: AWS::Region
+        TableName:
+          Ref: UserPairConversationTableACDCC81E
+      ServiceRoleArn:
+        Fn::GetAtt:
+          - ChatAPIuserPairConversationDSServiceRole5FA54A76
+          - Arn
+    Metadata:
+      aws:cdk:path: ChatApiStack/ChatAPI/userPairConversationDS/Resource
+  ChatAPIuserPairConversationDSQueryuserPairConversationResolverBCDE5C37:
+    Type: AWS::AppSync::Resolver
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+          - ChatAPID12E9E7A
+          - ApiId
+      FieldName: userPairConversation
+      TypeName: Query
+      DataSourceName: userPairConversationDS
+      Kind: UNIT
+      RequestMappingTemplate: |2
+        
+            {
+                "version" : "2017-02-28",
+                "operation" : "GetItem",
+                "key" : {
+                    "userPairId" : { "S" : "${context.arguments.userPairId}" }
+                }
+            }
+      ResponseMappingTemplate: $util.toJson($ctx.result)
+    DependsOn:
+      - ChatAPISchemaE04B1A3A
+      - ChatAPIuserPairConversationDS1CD48A8A
+    Metadata:
+      aws:cdk:path: ChatApiStack/ChatAPI/userPairConversationDS/QueryuserPairConversationResolver/Resource
+  ChatAPIcreateconversationDSServiceRoleF3C4CAC2:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: appsync.amazonaws.com
+        Version: "2012-10-17"
+    Metadata:
+      aws:cdk:path: ChatApiStack/ChatAPI/create_conversationDS/ServiceRole/Resource
+  ChatAPIcreateconversationDSServiceRoleDefaultPolicyE3DC0FAB:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action: lambda:InvokeFunction
+            Effect: Allow
+            Resource:
+              Fn::GetAtt:
+                - createconversationAF5C4C2E
+                - Arn
+        Version: "2012-10-17"
+      PolicyName: ChatAPIcreateconversationDSServiceRoleDefaultPolicyE3DC0FAB
+      Roles:
+        - Ref: ChatAPIcreateconversationDSServiceRoleF3C4CAC2
+    Metadata:
+      aws:cdk:path: ChatApiStack/ChatAPI/create_conversationDS/ServiceRole/DefaultPolicy/Resource
+  ChatAPIcreateconversationDS6618DC7D:
+    Type: AWS::AppSync::DataSource
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+          - ChatAPID12E9E7A
+          - ApiId
+      Name: create_conversationDS
+      Type: AWS_LAMBDA
+      LambdaConfig:
+        LambdaFunctionArn:
+          Fn::GetAtt:
+            - createconversationAF5C4C2E
+            - Arn
+      ServiceRoleArn:
+        Fn::GetAtt:
+          - ChatAPIcreateconversationDSServiceRoleF3C4CAC2
+          - Arn
+    Metadata:
+      aws:cdk:path: ChatApiStack/ChatAPI/create_conversationDS/Resource
+  ChatAPIcreateconversationDSMutationcreateConversationResolver3D3B52D0:
+    Type: AWS::AppSync::Resolver
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+          - ChatAPID12E9E7A
+          - ApiId
+      FieldName: createConversation
+      TypeName: Mutation
+      DataSourceName: create_conversationDS
+      Kind: UNIT
+    DependsOn:
+      - ChatAPIcreateconversationDS6618DC7D
+      - ChatAPISchemaE04B1A3A
+    Metadata:
+      aws:cdk:path: ChatApiStack/ChatAPI/create_conversationDS/MutationcreateConversationResolver/Resource
+  FullDynamoDBRole0DA3D815:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - appsync.amazonaws.com
+                - lambda.amazonaws.com
+        Version: "2012-10-17"
+    Metadata:
+      aws:cdk:path: ChatApiStack/FullDynamoDBRole/Resource
+  FullDynamoDBRoleDefaultPolicy167E91B0:
     Type: AWS::IAM::Policy
     Properties:
       PolicyDocument:
@@ -608,19 +803,32 @@ Resources:
                         - UserConversationTable49EB8B67
                         - Arn
                     - /index/conversationId-index
+              - Fn::GetAtt:
+                  - UserPairConversationTableACDCC81E
+                  - Arn
         Version: "2012-10-17"
-      PolicyName: AppSyncDynamoDBRoleDefaultPolicyC10FF97B
+      PolicyName: FullDynamoDBRoleDefaultPolicy167E91B0
       Roles:
-        - Ref: AppSyncDynamoDBRoleBDD57878
+        - Ref: FullDynamoDBRole0DA3D815
     Metadata:
-      aws:cdk:path: ChatApiStack/AppSyncDynamoDBRole/DefaultPolicy/Resource
+      aws:cdk:path: ChatApiStack/FullDynamoDBRole/DefaultPolicy/Resource
   CDKMetadata:
     Type: AWS::CDK::Metadata
     Properties:
-      Analytics: v2:deflate64:H4sIAAAAAAAAE1VOyw7CIBD8Fu+42l68amzixURt/YEtYERbQB41DeHfFRqNnmZmZzMzBRTFCpazNT7tnLL7IlBlOITGIb2TmlvlDeVke5EH77R3ZKukdcZTl26//ttgwgklI0lZgY0Se8VaCGdsu/ySydvW2o6SQtgZ1NdHt9EiuVmd9v+qoVfeI6lyWNVW6LD5Vv6otKQbuPmsSjwSgT2EWk3tGY+qE3RMcmIxRiIV43Czi6EooVxCObtZIebGSyd6DvWEL69FZ3spAQAA
+      Analytics: v2:deflate64:H4sIAAAAAAAAE1VPy07DMBD8lt6dbRMOXGkbwaUSJeEHNrZp3cR28KMosvzvxI4IcNqZ3RntTAll+Qi7zRN+2YKyfhuoNhxC65D2pOFWe0M52VvL3by7CHUhR62sM546cvxQZzQoueMmkVfvRp/Xq3PGs54JJ7SKJH0JbFIoNesgvGM3ZEkGkQwoO4YQnr2iyZBOPzgSgRJCoxdHnmc9CDrlGBlFYh8KTFkt5Mgzh4OnPXcHtJzgONpJUQgvBsfr57AfRTJn9nb6z1p65RJJncPWXY0O27XSH5aaDvel/4pPucivKsZIlGYcbnZ7LyuodlBtblaIwnjlhOTQLPMbGTVHapABAAA=
     Metadata:
       aws:cdk:path: ChatApiStack/CDKMetadata/Default
     Condition: CDKMetadataAvailable
+Parameters:
+  AssetParameters808b4d5b337735a600811dfe5feace53d8a9ed767158812e65e4b2786713482bS3BucketFE6CBA19:
+    Type: String
+    Description: S3 bucket for asset "808b4d5b337735a600811dfe5feace53d8a9ed767158812e65e4b2786713482b"
+  AssetParameters808b4d5b337735a600811dfe5feace53d8a9ed767158812e65e4b2786713482bS3VersionKey5C1E85EF:
+    Type: String
+    Description: S3 key for asset version "808b4d5b337735a600811dfe5feace53d8a9ed767158812e65e4b2786713482b"
+  AssetParameters808b4d5b337735a600811dfe5feace53d8a9ed767158812e65e4b2786713482bArtifactHashB955019A:
+    Type: String
+    Description: Artifact hash for asset "808b4d5b337735a600811dfe5feace53d8a9ed767158812e65e4b2786713482b"
 Outputs:
   chatapi:
     Description: Chat api endpoint

@@ -15,6 +15,13 @@ import {
     userPairConversationRequestStr
 } from './map-template-str';
 
+// Interface used as parameter to create resolvers for API
+interface ResolverOptions {
+    source: string | AppSync.BaseDataSource,
+    requestMappingTemplate?: AppSync.MappingTemplate,
+    responseMappingTemplate?: AppSync.MappingTemplate
+};
+
 export class ChatApiStack extends CDK.Stack {
 
     readonly api: AppSync.GraphqlApi;
@@ -36,6 +43,34 @@ export class ChatApiStack extends CDK.Stack {
         });
         this.functions[name] = fn;
     };
+
+    /**
+     * Retrieves the Lambda function by its name
+     * 
+     * @param name - name of the Lambda function
+     */
+     private getFn(name: string): Lambda.Function {
+        return this.functions[name];
+    };
+
+    /**
+     * Creates a resolver.
+     * 
+     * A resolver attaches a data source to a specific field in the schema.
+     * 
+     * @param typeName - type (e.g. Query, Mutation)
+     * @param fieldName - resolvable fields
+     * @param options - ResolverOptions
+     */
+     private createLambdaResolver = (typeName: string, fieldName: string, options: ResolverOptions)
+        :AppSync.BaseDataSource => {
+        let source = (typeof(options.source) === 'string') ?
+            this.api.addLambdaDataSource(`${options.source}DS`, this.getFn(options.source)) :
+            options.source;
+
+        source.createResolver({ typeName, fieldName, ...options });
+        return source;
+    }
 
     constructor(scope: CDK.Construct, id: string, props?: CDK.StackProps) {
         super(scope, id, props);
@@ -92,6 +127,13 @@ export class ChatApiStack extends CDK.Stack {
         });
 
         /**
+         * Create Lambda functions
+         */
+        ['create_conversation'].forEach(
+            (fn) => { this.addFunction(fn) }
+        );
+
+        /**
          * Retrieve existing user pool
          */
         const userPool = Cognito.UserPool.fromUserPoolId(this, 'pagenow-userpool', 'us-east-1_014HGnyeu');
@@ -142,12 +184,12 @@ export class ChatApiStack extends CDK.Stack {
         const userConversationDS = this.api.addDynamoDbDataSource("userConversationDS", userConversationTable);
         const userPairConversationDS = this.api.addDynamoDbDataSource("userPairConversationDS", userPairConversationTable);
 
-        conversationDS.createResolver({
-            typeName: "Mutation",
-            fieldName: "createConversation",
-            requestMappingTemplate: AppSync.MappingTemplate.fromString(createConversationRequestStr),
-            responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultItem()
-        });
+        // conversationDS.createResolver({
+        //     typeName: "Mutation",
+        //     fieldName: "createConversation",
+        //     requestMappingTemplate: AppSync.MappingTemplate.fromString(createConversationRequestStr),
+        //     responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultItem()
+        // });
 
         messageDS.createResolver({
             typeName: "Mutation",
@@ -197,6 +239,9 @@ export class ChatApiStack extends CDK.Stack {
             requestMappingTemplate: AppSync.MappingTemplate.fromString(userPairConversationRequestStr),
             responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultItem()
         });
+
+        // Add Lambda resolver
+        this.createLambdaResolver("Mutation", "createConversation", { source: "create_conversation" })
 
         new CDK.CfnOutput(this, "chat-api", {
             value: this.api.graphqlUrl,
