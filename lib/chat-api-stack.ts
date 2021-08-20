@@ -9,10 +9,10 @@ import * as Lambda from '@aws-cdk/aws-lambda';
 
 import { ChatSchema } from './schema';
 import {
-    createConversationRequestStr, createMessageRequestStr, createUserConversationRequestStr,
-    conversationUserConversationRequestStr, allMessagesConnectionRequestStr,
-    allMessagesConnectionResponseStr, allMessagesRequestStr, allMessagesFromRequestStr,
-    userPairConversationRequestStr
+    createDirectMessageRequestStr, createUserConversationRequestStr,
+    conversationUserConversationRequestStr, allDirectMessagesConnectionRequestStr,
+    allDirectMessagesConnectionResponseStr, allDirectMessagesRequestStr,
+    allDirectMessagesFromRequestStr, directMessageConversationRequestStr
 } from './map-template-str';
 
 // Interface used as parameter to create resolvers for API
@@ -83,7 +83,7 @@ export class ChatApiStack extends CDK.Stack {
             }
         });
 
-        const messageTable = new DDB.Table(this, 'MessageTable', {
+        const directMessageTable = new DDB.Table(this, 'DirectMessageTable', {
             billingMode: DDB.BillingMode.PAY_PER_REQUEST,
             partitionKey: {
                 name: "conversationId",
@@ -114,7 +114,7 @@ export class ChatApiStack extends CDK.Stack {
             }
         });
 
-        const userPairConversationTable = new DDB.Table(this, 'UserPairConversationTable', {
+        const directMessageConversationTable = new DDB.Table(this, 'DirectMessageConversationTable', {
             billingMode: DDB.BillingMode.PAY_PER_REQUEST,
             partitionKey: {
                 name: "userPairId",
@@ -168,10 +168,10 @@ export class ChatApiStack extends CDK.Stack {
             effect: IAM.Effect.ALLOW,
             resources: [
                 conversationTable.tableArn,
-                messageTable.tableArn,
+                directMessageTable.tableArn,
                 userConversationTable.tableArn,
                 `${userConversationTable.tableArn}/index/conversationId-index`,
-                userPairConversationTable.tableArn
+                directMessageConversationTable.tableArn
             ],
             actions: ["dynamodb:*"]
         }));
@@ -180,9 +180,9 @@ export class ChatApiStack extends CDK.Stack {
          * Add resolvers
          */
         const conversationDS = this.api.addDynamoDbDataSource("conversationDS", conversationTable);
-        const messageDS = this.api.addDynamoDbDataSource("messageDS", messageTable);
+        const directMessageDS = this.api.addDynamoDbDataSource("messageDS", directMessageTable);
         const userConversationDS = this.api.addDynamoDbDataSource("userConversationDS", userConversationTable);
-        const userPairConversationDS = this.api.addDynamoDbDataSource("userPairConversationDS", userPairConversationTable);
+        const directMessageConversationDS = this.api.addDynamoDbDataSource("userPairConversationDS", directMessageConversationTable);
 
         // conversationDS.createResolver({
         //     typeName: "Mutation",
@@ -191,10 +191,10 @@ export class ChatApiStack extends CDK.Stack {
         //     responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultItem()
         // });
 
-        messageDS.createResolver({
+        directMessageDS.createResolver({
             typeName: "Mutation",
-            fieldName: "createMessage",
-            requestMappingTemplate: AppSync.MappingTemplate.fromString(createMessageRequestStr),
+            fieldName: "createDirectMessage",
+            requestMappingTemplate: AppSync.MappingTemplate.fromString(createDirectMessageRequestStr),
             responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultItem()
         });
 
@@ -212,31 +212,31 @@ export class ChatApiStack extends CDK.Stack {
             responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultItem()
         });
 
-        messageDS.createResolver({
+        directMessageDS.createResolver({
             typeName: "Query",
-            fieldName: "allMessagesConnection",
-            requestMappingTemplate: AppSync.MappingTemplate.fromString(allMessagesConnectionRequestStr),
-            responseMappingTemplate: AppSync.MappingTemplate.fromString(allMessagesConnectionResponseStr)
+            fieldName: "allDirectMessagesConnection",
+            requestMappingTemplate: AppSync.MappingTemplate.fromString(allDirectMessagesConnectionRequestStr),
+            responseMappingTemplate: AppSync.MappingTemplate.fromString(allDirectMessagesConnectionResponseStr)
         });
 
-        messageDS.createResolver({
+        directMessageDS.createResolver({
             typeName: "Query",
-            fieldName: "allMessages",
-            requestMappingTemplate: AppSync.MappingTemplate.fromString(allMessagesRequestStr),
+            fieldName: "allDirectMessages",
+            requestMappingTemplate: AppSync.MappingTemplate.fromString(allDirectMessagesRequestStr),
             responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultList()
         });
 
-        messageDS.createResolver({
+        directMessageDS.createResolver({
             typeName: "Query",
-            fieldName: "allMessagesFrom",
-            requestMappingTemplate: AppSync.MappingTemplate.fromString(allMessagesFromRequestStr),
+            fieldName: "allDirectMessagesFrom",
+            requestMappingTemplate: AppSync.MappingTemplate.fromString(allDirectMessagesFromRequestStr),
             responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultList()
         });
 
-        userPairConversationDS.createResolver({
+        directMessageConversationDS.createResolver({
             typeName: "Query",
-            fieldName: "userPairConversation",
-            requestMappingTemplate: AppSync.MappingTemplate.fromString(userPairConversationRequestStr),
+            fieldName: "directMessageConversation",
+            requestMappingTemplate: AppSync.MappingTemplate.fromString(directMessageConversationRequestStr),
             responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultItem()
         });
 

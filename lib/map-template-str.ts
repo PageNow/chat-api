@@ -13,7 +13,7 @@ export const createConversationRequestStr = `
     }
 `;
 
-export const createMessageRequestStr = `
+export const createDirectMessageRequestStr = `
     {
         "version" : "2017-02-28",
         "operation" : "PutItem",
@@ -21,12 +21,14 @@ export const createMessageRequestStr = `
             "conversationId" : { "S" : "\${context.arguments.conversationId}" }
         },
         "attributeValues" : {
-            "conversationId": {  "S": "\${context.arguments.conversationId}" },
-            "content": {  "S": "\${context.arguments.content}" },
-            "createdAt": {  "S": "\${context.arguments.createdAt}" },
-            "sender": {  "S": "\${context.identity.sub}" },
-            "isSent": {  "BOOL": true },
-            "id": { "S": "\${context.arguments.id}" }
+            "senderId": { "S": "\${context.identity.sub}" },
+            "recipientId": { "S": "\${context.arguments.recipientId}" }
+            "conversationId": { "S": "\${context.arguments.conversationId}" },
+            "content": { "S": "\${context.arguments.content}" },
+            "createdAt": { "S": "\${context.arguments.createdAt}" },
+            "id": { "S": "\${context.arguments.id}" },
+            "isSent": { "BOOL": true }
+            "isRead": { "BOOL": false }
         }
     }
 `;
@@ -56,7 +58,7 @@ export const conversationUserConversationRequestStr = `
     }
 `;
 
-export const allMessagesConnectionRequestStr = `
+export const allDirectMessagesConnectionRequestStr = `
     {
         "version" : "2017-02-28",
         "operation" : "Query",
@@ -74,14 +76,14 @@ export const allMessagesConnectionRequestStr = `
     }
 `;
 
-export const allMessagesConnectionResponseStr = `
+export const allDirectMessagesConnectionResponseStr = `
     {
         "messages": $utils.toJson($context.result.items),
         "nextToken": #if(\${context.result.nextToken}) "\${context.result.nextToken}" #else null #end
     }
 `;
 
-export const allMessagesRequestStr = `
+export const allDirectMessagesRequestStr = `
     {
         "version" : "2017-02-28",
         "operation" : "Query",
@@ -98,28 +100,27 @@ export const allMessagesRequestStr = `
     }
 `;
 
-export const allMessagesFromRequestStr = `
+export const allDirectMessagesFromRequestStr = `
     {
         "version" : "2017-02-28",
         "operation" : "Query",
         "query" : {
-            "expression": "conversationId = :id and sender = :sender",
+            "expression": "conversationId = :id and senderId = :senderId",
             "expressionValues" : {
                 ":id" : {
                     "S" : "\${context.arguments.conversationId}"
                 },
-                ":sender" : {
-                    "S" : "\${context.arguments.sender}"
+                ":senderId" : {
+                    "S" : "\${context.arguments.senderId}"
                 }
             }
         },
-        "index" : "sender",
         "limit": #if(\${context.arguments.first}) \${context.arguments.first} #else 20 #end,
         "nextToken": #if(\${context.arguments.after}) "\${context.arguments.after}" #else null #end
     }
 `;
 
-export const userPairConversationRequestStr = `
+export const directMessageConversationRequestStr = `
     {
         "version" : "2017-02-28",
         "operation" : "GetItem",

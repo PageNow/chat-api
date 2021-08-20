@@ -13,7 +13,7 @@ Resources:
     DeletionPolicy: Retain
     Metadata:
       aws:cdk:path: ChatApiStack/ConversationTable/Resource
-  MessageTable477906EA:
+  DirectMessageTable9554018F:
     Type: AWS::DynamoDB::Table
     Properties:
       KeySchema:
@@ -30,7 +30,7 @@ Resources:
     UpdateReplacePolicy: Retain
     DeletionPolicy: Retain
     Metadata:
-      aws:cdk:path: ChatApiStack/MessageTable/Resource
+      aws:cdk:path: ChatApiStack/DirectMessageTable/Resource
   UserConversationTable49EB8B67:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -56,7 +56,7 @@ Resources:
     DeletionPolicy: Retain
     Metadata:
       aws:cdk:path: ChatApiStack/UserConversationTable/Resource
-  UserPairConversationTableACDCC81E:
+  DirectMessageConversationTable4AA78A41:
     Type: AWS::DynamoDB::Table
     Properties:
       KeySchema:
@@ -73,7 +73,7 @@ Resources:
     UpdateReplacePolicy: Retain
     DeletionPolicy: Retain
     Metadata:
-      aws:cdk:path: ChatApiStack/UserPairConversationTable/Resource
+      aws:cdk:path: ChatApiStack/DirectMessageConversationTable/Resource
   createconversationServiceRole140FECC6:
     Type: AWS::IAM::Role
     Properties:
@@ -178,20 +178,20 @@ Resources:
           id: ID!
           name: String!
           createdAt: String
-          messages(after: String first: Int): MessageConnection
+          messages(after: String first: Int): DirectMessageConnection
         }
-        type Message {
-          authorId: String
+        type DirectMessage {
+          senderId: ID!
+          recipientId: ID!
           content: String!
           conversationid: ID!
           createdAt: String
           id: ID!
           isSent: Boolean
-          recipientId: String
-          sender: String
+          isRead: Boolean
         }
-        type MessageConnection {
-          messages: [Message]
+        type DirectMessageConnection {
+          messages: [DirectMessage]
           nextToken: String
         }
         type UserConversation {
@@ -201,26 +201,26 @@ Resources:
         }
         type UserConversationConnection {
           nextToken: String
-          userConversation: [UserConversation]
+          userConversations: [UserConversation]
         }
-        type UserPairConversation {
+        type DirectMessageConversation {
           userPairId: ID!
           conversationId: String
         }
         type Query {
-          allMessages(after: String conversationId: ID! first: Int): [Message]
-          allMessagesConnection(after: String conversationId: ID! first: Int): MessageConnection
-          allMessagesFrom(after: String conversationId: ID! first: Int sender: String!): [Message]
-          userPairConversation(userPairId: ID!): UserPairConversation
+          allDirectMessages(after: String conversationId: ID! first: Int): [DirectMessage]
+          allDirectMessagesConnection(after: String conversationId: ID! first: Int): DirectMessageConnection
+          allDirectMessagesFrom(after: String conversationId: ID! first: Int senderId: String!): [DirectMessage]
+          directMessageConversation(userPairId: ID!): DirectMessageConversation
         }
         type Mutation {
           createConversation(createdAt: String id: ID! name: String!): Conversation
-          createMessage(content: String conversationId: ID! createdAt: String! id: ID!): Message
+          createDirectMessage(content: String conversationId: ID! createdAt: String! id: ID! recipientId: ID!): DirectMessage
           createUserConversation(conversationId: ID! userId: ID!): UserConversation
         }
         type Subscription {
-          subscribeToNewMessage(conversationId: ID!): Message
-          @aws_subscribe(mutations: ["createMessage"])
+          subscribeToNewMessage(recipientId: ID!): DirectMessage
+          @aws_subscribe(mutations: ["createDirectMessage"])
           subscribeToNewUserConversation(userId: ID!): UserConversation
           @aws_subscribe(mutations: ["createUserConversation"])
         }
@@ -345,7 +345,7 @@ Resources:
             Effect: Allow
             Resource:
               - Fn::GetAtt:
-                  - MessageTable477906EA
+                  - DirectMessageTable9554018F
                   - Arn
               - Ref: AWS::NoValue
         Version: "2012-10-17"
@@ -367,21 +367,21 @@ Resources:
         AwsRegion:
           Ref: AWS::Region
         TableName:
-          Ref: MessageTable477906EA
+          Ref: DirectMessageTable9554018F
       ServiceRoleArn:
         Fn::GetAtt:
           - ChatAPImessageDSServiceRole5B01BD53
           - Arn
     Metadata:
       aws:cdk:path: ChatApiStack/ChatAPI/messageDS/Resource
-  ChatAPImessageDSMutationcreateMessageResolver616FBDEB:
+  ChatAPImessageDSMutationcreateDirectMessageResolver1A7CBFE2:
     Type: AWS::AppSync::Resolver
     Properties:
       ApiId:
         Fn::GetAtt:
           - ChatAPID12E9E7A
           - ApiId
-      FieldName: createMessage
+      FieldName: createDirectMessage
       TypeName: Mutation
       DataSourceName: messageDS
       Kind: UNIT
@@ -394,12 +394,14 @@ Resources:
                     "conversationId" : { "S" : "${context.arguments.conversationId}" }
                 },
                 "attributeValues" : {
-                    "conversationId": {  "S": "${context.arguments.conversationId}" },
-                    "content": {  "S": "${context.arguments.content}" },
-                    "createdAt": {  "S": "${context.arguments.createdAt}" },
-                    "sender": {  "S": "${context.identity.sub}" },
-                    "isSent": {  "BOOL": true },
-                    "id": { "S": "${context.arguments.id}" }
+                    "senderId": { "S": "${context.identity.sub}" },
+                    "recipientId": { "S": "${context.arguments.recipientId}" }
+                    "conversationId": { "S": "${context.arguments.conversationId}" },
+                    "content": { "S": "${context.arguments.content}" },
+                    "createdAt": { "S": "${context.arguments.createdAt}" },
+                    "id": { "S": "${context.arguments.id}" },
+                    "isSent": { "BOOL": true }
+                    "isRead": { "BOOL": false }
                 }
             }
       ResponseMappingTemplate: $util.toJson($ctx.result)
@@ -407,15 +409,15 @@ Resources:
       - ChatAPImessageDS835C5182
       - ChatAPISchemaE04B1A3A
     Metadata:
-      aws:cdk:path: ChatApiStack/ChatAPI/messageDS/MutationcreateMessageResolver/Resource
-  ChatAPImessageDSQueryallMessagesConnectionResolverEAD59084:
+      aws:cdk:path: ChatApiStack/ChatAPI/messageDS/MutationcreateDirectMessageResolver/Resource
+  ChatAPImessageDSQueryallDirectMessagesConnectionResolverA6C9EF55:
     Type: AWS::AppSync::Resolver
     Properties:
       ApiId:
         Fn::GetAtt:
           - ChatAPID12E9E7A
           - ApiId
-      FieldName: allMessagesConnection
+      FieldName: allDirectMessagesConnection
       TypeName: Query
       DataSourceName: messageDS
       Kind: UNIT
@@ -446,15 +448,15 @@ Resources:
       - ChatAPImessageDS835C5182
       - ChatAPISchemaE04B1A3A
     Metadata:
-      aws:cdk:path: ChatApiStack/ChatAPI/messageDS/QueryallMessagesConnectionResolver/Resource
-  ChatAPImessageDSQueryallMessagesResolverF0EF57F3:
+      aws:cdk:path: ChatApiStack/ChatAPI/messageDS/QueryallDirectMessagesConnectionResolver/Resource
+  ChatAPImessageDSQueryallDirectMessagesResolverE08590C0:
     Type: AWS::AppSync::Resolver
     Properties:
       ApiId:
         Fn::GetAtt:
           - ChatAPID12E9E7A
           - ApiId
-      FieldName: allMessages
+      FieldName: allDirectMessages
       TypeName: Query
       DataSourceName: messageDS
       Kind: UNIT
@@ -479,15 +481,15 @@ Resources:
       - ChatAPImessageDS835C5182
       - ChatAPISchemaE04B1A3A
     Metadata:
-      aws:cdk:path: ChatApiStack/ChatAPI/messageDS/QueryallMessagesResolver/Resource
-  ChatAPImessageDSQueryallMessagesFromResolverE99CFD6C:
+      aws:cdk:path: ChatApiStack/ChatAPI/messageDS/QueryallDirectMessagesResolver/Resource
+  ChatAPImessageDSQueryallDirectMessagesFromResolverEC6B3C14:
     Type: AWS::AppSync::Resolver
     Properties:
       ApiId:
         Fn::GetAtt:
           - ChatAPID12E9E7A
           - ApiId
-      FieldName: allMessagesFrom
+      FieldName: allDirectMessagesFrom
       TypeName: Query
       DataSourceName: messageDS
       Kind: UNIT
@@ -497,17 +499,16 @@ Resources:
                 "version" : "2017-02-28",
                 "operation" : "Query",
                 "query" : {
-                    "expression": "conversationId = :id and sender = :sender",
+                    "expression": "conversationId = :id and senderId = :senderId",
                     "expressionValues" : {
                         ":id" : {
                             "S" : "${context.arguments.conversationId}"
                         },
-                        ":sender" : {
-                            "S" : "${context.arguments.sender}"
+                        ":senderId" : {
+                            "S" : "${context.arguments.senderId}"
                         }
                     }
                 },
-                "index" : "sender",
                 "limit": #if(${context.arguments.first}) ${context.arguments.first} #else 20 #end,
                 "nextToken": #if(${context.arguments.after}) "${context.arguments.after}" #else null #end
             }
@@ -516,7 +517,7 @@ Resources:
       - ChatAPImessageDS835C5182
       - ChatAPISchemaE04B1A3A
     Metadata:
-      aws:cdk:path: ChatApiStack/ChatAPI/messageDS/QueryallMessagesFromResolver/Resource
+      aws:cdk:path: ChatApiStack/ChatAPI/messageDS/QueryallDirectMessagesFromResolver/Resource
   ChatAPIuserConversationDSServiceRole53B5B2EE:
     Type: AWS::IAM::Role
     Properties:
@@ -646,7 +647,7 @@ Resources:
             Effect: Allow
             Resource:
               - Fn::GetAtt:
-                  - UserPairConversationTableACDCC81E
+                  - DirectMessageConversationTable4AA78A41
                   - Arn
               - Ref: AWS::NoValue
         Version: "2012-10-17"
@@ -668,21 +669,21 @@ Resources:
         AwsRegion:
           Ref: AWS::Region
         TableName:
-          Ref: UserPairConversationTableACDCC81E
+          Ref: DirectMessageConversationTable4AA78A41
       ServiceRoleArn:
         Fn::GetAtt:
           - ChatAPIuserPairConversationDSServiceRole5FA54A76
           - Arn
     Metadata:
       aws:cdk:path: ChatApiStack/ChatAPI/userPairConversationDS/Resource
-  ChatAPIuserPairConversationDSQueryuserPairConversationResolverBCDE5C37:
+  ChatAPIuserPairConversationDSQuerydirectMessageConversationResolverCC359838:
     Type: AWS::AppSync::Resolver
     Properties:
       ApiId:
         Fn::GetAtt:
           - ChatAPID12E9E7A
           - ApiId
-      FieldName: userPairConversation
+      FieldName: directMessageConversation
       TypeName: Query
       DataSourceName: userPairConversationDS
       Kind: UNIT
@@ -700,7 +701,7 @@ Resources:
       - ChatAPISchemaE04B1A3A
       - ChatAPIuserPairConversationDS1CD48A8A
     Metadata:
-      aws:cdk:path: ChatApiStack/ChatAPI/userPairConversationDS/QueryuserPairConversationResolver/Resource
+      aws:cdk:path: ChatApiStack/ChatAPI/userPairConversationDS/QuerydirectMessageConversationResolver/Resource
   ChatAPIcreateconversationDSServiceRoleF3C4CAC2:
     Type: AWS::IAM::Role
     Properties:
@@ -792,7 +793,7 @@ Resources:
                   - ConversationTable75C14D21
                   - Arn
               - Fn::GetAtt:
-                  - MessageTable477906EA
+                  - DirectMessageTable9554018F
                   - Arn
               - Fn::GetAtt:
                   - UserConversationTable49EB8B67
@@ -804,7 +805,7 @@ Resources:
                         - Arn
                     - /index/conversationId-index
               - Fn::GetAtt:
-                  - UserPairConversationTableACDCC81E
+                  - DirectMessageConversationTable4AA78A41
                   - Arn
         Version: "2012-10-17"
       PolicyName: FullDynamoDBRoleDefaultPolicy167E91B0
