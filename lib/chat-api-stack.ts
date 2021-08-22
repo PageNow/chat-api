@@ -119,10 +119,6 @@ export class ChatApiStack extends CDK.Stack {
             partitionKey: {
                 name: "userPairId",
                 type: DDB.AttributeType.STRING
-            },
-            sortKey: {
-                name: "conversationId",
-                type: DDB.AttributeType.STRING
             }
         });
 

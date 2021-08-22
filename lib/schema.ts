@@ -143,8 +143,7 @@ export const ChatSchema = (): AppSync.Schema => {
     schema.addMutation("createConversation", new AppSync.Field({
         returnType: conversationGqlType,
         args: {
-            createdAt: AppSync.GraphqlType.string(),
-            id: conversationId,
+            recipientId: userId,
             name: AppSync.GraphqlType.string({ isRequired: true })
         }
     }));
