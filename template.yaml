@@ -3,10 +3,10 @@ Resources:
     Type: AWS::DynamoDB::Table
     Properties:
       KeySchema:
-        - AttributeName: id
+        - AttributeName: conversationId
           KeyType: HASH
       AttributeDefinitions:
-        - AttributeName: id
+        - AttributeName: conversationId
           AttributeType: S
       BillingMode: PAY_PER_REQUEST
     UpdateReplacePolicy: Retain
@@ -62,19 +62,15 @@ Resources:
       KeySchema:
         - AttributeName: userPairId
           KeyType: HASH
-        - AttributeName: conversationId
-          KeyType: RANGE
       AttributeDefinitions:
         - AttributeName: userPairId
-          AttributeType: S
-        - AttributeName: conversationId
           AttributeType: S
       BillingMode: PAY_PER_REQUEST
     UpdateReplacePolicy: Retain
     DeletionPolicy: Retain
     Metadata:
       aws:cdk:path: ChatApiStack/DirectMessageConversationTable/Resource
-  createconversationServiceRole140FECC6:
+  LambdaExecutionRoleD5C26073:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -84,20 +80,46 @@ Resources:
             Principal:
               Service: lambda.amazonaws.com
         Version: "2012-10-17"
-      ManagedPolicyArns:
-        - Fn::Join:
-            - ""
-            - - "arn:"
-              - Ref: AWS::Partition
-              - :iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
     Metadata:
-      aws:cdk:path: ChatApiStack/create_conversation/ServiceRole/Resource
-  createconversationAF5C4C2E:
-    Type: AWS::Lambda::Function
+      aws:cdk:path: ChatApiStack/LambdaExecutionRole/Resource
+  LambdaExecutionRoleDefaultPolicy6D69732F:
+    Type: AWS::IAM::Policy
     Properties:
-      Code:
+      PolicyDocument:
+        Statement:
+          - Action: dynamodb:*
+            Effect: Allow
+            Resource:
+              - Fn::GetAtt:
+                  - ConversationTable75C14D21
+                  - Arn
+              - Fn::GetAtt:
+                  - DirectMessageTable9554018F
+                  - Arn
+              - Fn::GetAtt:
+                  - UserConversationTable49EB8B67
+                  - Arn
+              - Fn::Join:
+                  - ""
+                  - - Fn::GetAtt:
+                        - UserConversationTable49EB8B67
+                        - Arn
+                    - /index/conversationId-index
+              - Fn::GetAtt:
+                  - DirectMessageConversationTable4AA78A41
+                  - Arn
+        Version: "2012-10-17"
+      PolicyName: LambdaExecutionRoleDefaultPolicy6D69732F
+      Roles:
+        - Ref: LambdaExecutionRoleD5C26073
+    Metadata:
+      aws:cdk:path: ChatApiStack/LambdaExecutionRole/DefaultPolicy/Resource
+  lambdaModuleE2C8C55A:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      Content:
         S3Bucket:
-          Ref: AssetParameters808b4d5b337735a600811dfe5feace53d8a9ed767158812e65e4b2786713482bS3BucketFE6CBA19
+          Ref: AssetParameterscd65941c739bdff7654fcb1a2a1cc76b107710fa5cc00a2208186aea94d25a15S3Bucket8A718BE6
         S3Key:
           Fn::Join:
             - ""
@@ -105,20 +127,49 @@ Resources:
                   - 0
                   - Fn::Split:
                       - "||"
-                      - Ref: AssetParameters808b4d5b337735a600811dfe5feace53d8a9ed767158812e65e4b2786713482bS3VersionKey5C1E85EF
+                      - Ref: AssetParameterscd65941c739bdff7654fcb1a2a1cc76b107710fa5cc00a2208186aea94d25a15S3VersionKey98B77AA4
               - Fn::Select:
                   - 1
                   - Fn::Split:
                       - "||"
-                      - Ref: AssetParameters808b4d5b337735a600811dfe5feace53d8a9ed767158812e65e4b2786713482bS3VersionKey5C1E85EF
+                      - Ref: AssetParameterscd65941c739bdff7654fcb1a2a1cc76b107710fa5cc00a2208186aea94d25a15S3VersionKey98B77AA4
+      CompatibleRuntimes:
+        - nodejs12.x
+      LayerName: chatLayer
+    Metadata:
+      aws:cdk:path: ChatApiStack/lambdaModule/Resource
+      aws:asset:path: /Users/ylee/pagenow/chat-api/src/layer
+      aws:asset:property: Content
+  createconversationAF5C4C2E:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket:
+          Ref: AssetParameters3da3d3c96e882cb4d86560fd8f29d2404b7d79bcea07b7d2e7c1c0be32da19a3S3Bucket2DB0068C
+        S3Key:
+          Fn::Join:
+            - ""
+            - - Fn::Select:
+                  - 0
+                  - Fn::Split:
+                      - "||"
+                      - Ref: AssetParameters3da3d3c96e882cb4d86560fd8f29d2404b7d79bcea07b7d2e7c1c0be32da19a3S3VersionKey9E40B7AA
+              - Fn::Select:
+                  - 1
+                  - Fn::Split:
+                      - "||"
+                      - Ref: AssetParameters3da3d3c96e882cb4d86560fd8f29d2404b7d79bcea07b7d2e7c1c0be32da19a3S3VersionKey9E40B7AA
       Role:
         Fn::GetAtt:
-          - createconversationServiceRole140FECC6
+          - LambdaExecutionRoleD5C26073
           - Arn
       Handler: create_conversation.handler
+      Layers:
+        - Ref: lambdaModuleE2C8C55A
       Runtime: nodejs12.x
     DependsOn:
-      - createconversationServiceRole140FECC6
+      - LambdaExecutionRoleDefaultPolicy6D69732F
+      - LambdaExecutionRoleD5C26073
     Metadata:
       aws:cdk:path: ChatApiStack/create_conversation/Resource
       aws:asset:path: /Users/ylee/pagenow/chat-api/src/functions/create_conversation
@@ -175,7 +226,7 @@ Resources:
           subscription: Subscription
         }
         type Conversation {
-          id: ID!
+          conversationId: ID!
           name: String!
           createdAt: String
           messages(after: String first: Int): DirectMessageConnection
@@ -186,7 +237,7 @@ Resources:
           content: String!
           conversationid: ID!
           createdAt: String
-          id: ID!
+          messageId: ID!
           isSent: Boolean
           isRead: Boolean
         }
@@ -207,6 +258,9 @@ Resources:
           userPairId: ID!
           conversationId: String
         }
+        type ConversationId {
+          conversationId: ID!
+        }
         type Query {
           allDirectMessages(after: String conversationId: ID! first: Int): [DirectMessage]
           allDirectMessagesConnection(after: String conversationId: ID! first: Int): DirectMessageConnection
@@ -214,8 +268,8 @@ Resources:
           directMessageConversation(userPairId: ID!): DirectMessageConversation
         }
         type Mutation {
-          createConversation(createdAt: String id: ID! name: String!): Conversation
-          createDirectMessage(content: String conversationId: ID! createdAt: String! id: ID! recipientId: ID!): DirectMessage
+          createConversation(recipientId: ID! name: String!): ConversationId
+          createDirectMessage(content: String conversationId: ID! createdAt: String! messageId: ID! recipientId: ID!): DirectMessage
           createUserConversation(conversationId: ID! userId: ID!): UserConversation
         }
         type Subscription {
@@ -767,69 +821,32 @@ Resources:
       - ChatAPISchemaE04B1A3A
     Metadata:
       aws:cdk:path: ChatApiStack/ChatAPI/create_conversationDS/MutationcreateConversationResolver/Resource
-  FullDynamoDBRole0DA3D815:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Statement:
-          - Action: sts:AssumeRole
-            Effect: Allow
-            Principal:
-              Service:
-                - appsync.amazonaws.com
-                - lambda.amazonaws.com
-        Version: "2012-10-17"
-    Metadata:
-      aws:cdk:path: ChatApiStack/FullDynamoDBRole/Resource
-  FullDynamoDBRoleDefaultPolicy167E91B0:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyDocument:
-        Statement:
-          - Action: dynamodb:*
-            Effect: Allow
-            Resource:
-              - Fn::GetAtt:
-                  - ConversationTable75C14D21
-                  - Arn
-              - Fn::GetAtt:
-                  - DirectMessageTable9554018F
-                  - Arn
-              - Fn::GetAtt:
-                  - UserConversationTable49EB8B67
-                  - Arn
-              - Fn::Join:
-                  - ""
-                  - - Fn::GetAtt:
-                        - UserConversationTable49EB8B67
-                        - Arn
-                    - /index/conversationId-index
-              - Fn::GetAtt:
-                  - DirectMessageConversationTable4AA78A41
-                  - Arn
-        Version: "2012-10-17"
-      PolicyName: FullDynamoDBRoleDefaultPolicy167E91B0
-      Roles:
-        - Ref: FullDynamoDBRole0DA3D815
-    Metadata:
-      aws:cdk:path: ChatApiStack/FullDynamoDBRole/DefaultPolicy/Resource
   CDKMetadata:
     Type: AWS::CDK::Metadata
     Properties:
-      Analytics: v2:deflate64:H4sIAAAAAAAAE1VPy07DMBD8lt6dbRMOXGkbwaUSJeEHNrZp3cR28KMosvzvxI4IcNqZ3RntTAll+Qi7zRN+2YKyfhuoNhxC65D2pOFWe0M52VvL3by7CHUhR62sM546cvxQZzQoueMmkVfvRp/Xq3PGs54JJ7SKJH0JbFIoNesgvGM3ZEkGkQwoO4YQnr2iyZBOPzgSgRJCoxdHnmc9CDrlGBlFYh8KTFkt5Mgzh4OnPXcHtJzgONpJUQgvBsfr57AfRTJn9nb6z1p65RJJncPWXY0O27XSH5aaDvel/4pPucivKsZIlGYcbnZ7LyuodlBtblaIwnjlhOTQLPMbGTVHapABAAA=
+      Analytics: v2:deflate64:H4sIAAAAAAAAE1VQy3KDMAz8ltwdJdBDr03CpBdmmkKnd2HUxAFs6kc6jMf/XjAtbU7aXa2kWSWQJI+wXT3hl1nzutl4rjSBLy3yhhVklNOc2M4YsqN2FvLMDkoaqx237PAhT6ixI0t6Ii/O9i7Ky+SIR38trFAysOmKrweJnaor8G9YtdESQWACO/CFmrVYT6oVfIiHIgqsxa6qEXyOA+l30mZcPPXv+NFJbn8avzgw87DGKYiBmGfksHe8IbtHQwz73gySg3/W2F8+210vpvHIXvN7VvILdciymCSrMrRYLnn/sekN7W1+zoLzmODPFUJgUtUEV7O5JSmkW0hXVyPEWjtpRUdQzPUb/zmoA60BAAA=
     Metadata:
       aws:cdk:path: ChatApiStack/CDKMetadata/Default
     Condition: CDKMetadataAvailable
 Parameters:
-  AssetParameters808b4d5b337735a600811dfe5feace53d8a9ed767158812e65e4b2786713482bS3BucketFE6CBA19:
+  AssetParameterscd65941c739bdff7654fcb1a2a1cc76b107710fa5cc00a2208186aea94d25a15S3Bucket8A718BE6:
     Type: String
-    Description: S3 bucket for asset "808b4d5b337735a600811dfe5feace53d8a9ed767158812e65e4b2786713482b"
-  AssetParameters808b4d5b337735a600811dfe5feace53d8a9ed767158812e65e4b2786713482bS3VersionKey5C1E85EF:
+    Description: S3 bucket for asset "cd65941c739bdff7654fcb1a2a1cc76b107710fa5cc00a2208186aea94d25a15"
+  AssetParameterscd65941c739bdff7654fcb1a2a1cc76b107710fa5cc00a2208186aea94d25a15S3VersionKey98B77AA4:
     Type: String
-    Description: S3 key for asset version "808b4d5b337735a600811dfe5feace53d8a9ed767158812e65e4b2786713482b"
-  AssetParameters808b4d5b337735a600811dfe5feace53d8a9ed767158812e65e4b2786713482bArtifactHashB955019A:
+    Description: S3 key for asset version "cd65941c739bdff7654fcb1a2a1cc76b107710fa5cc00a2208186aea94d25a15"
+  AssetParameterscd65941c739bdff7654fcb1a2a1cc76b107710fa5cc00a2208186aea94d25a15ArtifactHash89D4D241:
     Type: String
-    Description: Artifact hash for asset "808b4d5b337735a600811dfe5feace53d8a9ed767158812e65e4b2786713482b"
+    Description: Artifact hash for asset "cd65941c739bdff7654fcb1a2a1cc76b107710fa5cc00a2208186aea94d25a15"
+  AssetParameters3da3d3c96e882cb4d86560fd8f29d2404b7d79bcea07b7d2e7c1c0be32da19a3S3Bucket2DB0068C:
+    Type: String
+    Description: S3 bucket for asset "3da3d3c96e882cb4d86560fd8f29d2404b7d79bcea07b7d2e7c1c0be32da19a3"
+  AssetParameters3da3d3c96e882cb4d86560fd8f29d2404b7d79bcea07b7d2e7c1c0be32da19a3S3VersionKey9E40B7AA:
+    Type: String
+    Description: S3 key for asset version "3da3d3c96e882cb4d86560fd8f29d2404b7d79bcea07b7d2e7c1c0be32da19a3"
+  AssetParameters3da3d3c96e882cb4d86560fd8f29d2404b7d79bcea07b7d2e7c1c0be32da19a3ArtifactHashD34EB50D:
+    Type: String
+    Description: Artifact hash for asset "3da3d3c96e882cb4d86560fd8f29d2404b7d79bcea07b7d2e7c1c0be32da19a3"
 Outputs:
   chatapi:
     Description: Chat api endpoint

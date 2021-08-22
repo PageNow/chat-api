@@ -26,6 +26,7 @@ export class ChatApiStack extends CDK.Stack {
 
     readonly api: AppSync.GraphqlApi;
 
+    private lambdaLayer: Lambda.LayerVersion;
     // Lambda functions are stored by name
     private functions: { [key: string]: Lambda.Function } = {};
 
@@ -35,12 +36,14 @@ export class ChatApiStack extends CDK.Stack {
      *  
      * @param name - name of the function
      */
-     private addFunction = (name: string): void => {
+     private addFunction = (name: string, role: any): void => {
         const fn = new Lambda.Function(this, name, {
             code: Lambda.Code.fromAsset(path.resolve(__dirname, `../src/functions/${name}`)),
             runtime: Lambda.Runtime.NODEJS_12_X,
-            handler: `${name}.handler`
+            handler: `${name}.handler`,
+            role: role
         });
+        fn.addLayers(this.lambdaLayer);
         this.functions[name] = fn;
     };
 
@@ -78,7 +81,7 @@ export class ChatApiStack extends CDK.Stack {
         const conversationTable = new DDB.Table(this, 'ConversationTable', {
             billingMode: DDB.BillingMode.PAY_PER_REQUEST,
             partitionKey: {
-                name: "id",
+                name: "conversationId",
                 type: DDB.AttributeType.STRING
             }
         });
@@ -123,10 +126,42 @@ export class ChatApiStack extends CDK.Stack {
         });
 
         /**
+         * Create roles
+         */
+        const lambdaRole = new IAM.Role(this, 'LambdaExecutionRole', {
+            assumedBy: new IAM.ServicePrincipal('lambda.amazonaws.com')
+        });
+        lambdaRole.addToPolicy(new IAM.PolicyStatement({
+            effect: IAM.Effect.ALLOW,
+            resources: [
+                conversationTable.tableArn,
+                directMessageTable.tableArn,
+                userConversationTable.tableArn,
+                `${userConversationTable.tableArn}/index/conversationId-index`,
+                directMessageConversationTable.tableArn
+            ],
+            actions: [
+                "dynamodb:BatchGetItem",
+                "dynamodb:GetItem",
+                "dynamodb:Query",
+                "dynamodb:Scan",
+                "dynamodb:BatchWriteItem",
+                "dynamodb:PutItem",
+                "dynamodb:UpdateItem"
+            ]
+        }));
+        lambdaRole.addManagedPolicy(IAM.ManagedPolicy.fromAwsManagedPolicyName("service-role/AWSLambdaBasicExecutionRole"));
+
+        /**
          * Create Lambda functions
          */
+        this.lambdaLayer = new Lambda.LayerVersion(this, "lambdaModule", {
+            code: Lambda.Code.fromAsset(path.join(__dirname, '../src/layer')),
+            compatibleRuntimes: [Lambda.Runtime.NODEJS_12_X],
+            layerVersionName: "chatLayer"
+        });
         ['create_conversation'].forEach(
-            (fn) => { this.addFunction(fn) }
+            (fn) => { this.addFunction(fn, lambdaRole) }
         );
 
         /**
@@ -150,27 +185,6 @@ export class ChatApiStack extends CDK.Stack {
             schema: ChatSchema(),
             logConfig: { fieldLogLevel: AppSync.FieldLogLevel.ALL }
         });
-
-        /**
-         * Add IAM role/policy
-         */
-        const apiDynamoDBRole = new IAM.Role(this, 'FullDynamoDBRole', {
-            assumedBy: new IAM.CompositePrincipal(
-                new IAM.ServicePrincipal('appsync.amazonaws.com'),
-                new IAM.ServicePrincipal('lambda.amazonaws.com')
-            )
-        });
-        apiDynamoDBRole.addToPolicy(new IAM.PolicyStatement({
-            effect: IAM.Effect.ALLOW,
-            resources: [
-                conversationTable.tableArn,
-                directMessageTable.tableArn,
-                userConversationTable.tableArn,
-                `${userConversationTable.tableArn}/index/conversationId-index`,
-                directMessageConversationTable.tableArn
-            ],
-            actions: ["dynamodb:*"]
-        }));
 
         /**
          * Add resolvers
@@ -238,6 +252,14 @@ export class ChatApiStack extends CDK.Stack {
 
         // Add Lambda resolver
         this.createLambdaResolver("Mutation", "createConversation", { source: "create_conversation" })
+
+        /**
+         * Add Lambda Function
+         */
+        this.getFn("create_conversation")
+            .addEnvironment("CONVERSATION_TABLE_NAME", conversationTable.tableName)
+            .addEnvironment("USER_CONVERSATION_TABLE_NAME", userConversationTable.tableName)
+            .addEnvironment("DIRECT_MESSAGE_CONVERSATION_TABLE_NAME", directMessageConversationTable.tableName);
 
         new CDK.CfnOutput(this, "chat-api", {
             value: this.api.graphqlUrl,

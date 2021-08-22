@@ -28,7 +28,7 @@ export const ChatSchema = (): AppSync.Schema => {
             content: AppSync.GraphqlType.string({ isRequired: true }),
             conversationid: conversationId, // partition key
             createdAt: AppSync.GraphqlType.string(), // sort key
-            id: messageId,
+            messageId: messageId,
             // flags denoting if the message has been accepted by the server or not
             isSent: AppSync.GraphqlType.boolean(),
             isRead: AppSync.GraphqlType.boolean()
@@ -47,7 +47,7 @@ export const ChatSchema = (): AppSync.Schema => {
 
     const conversation = new AppSync.ObjectType("Conversation", {
         definition: {
-            id: conversationId,
+            conversationId: conversationId,
             name: AppSync.GraphqlType.string({ isRequired: true }),
             createdAt: AppSync.GraphqlType.string(),
             // messages(after: String, first: Int): MessageConnection
@@ -61,6 +61,13 @@ export const ChatSchema = (): AppSync.Schema => {
         }
     });
     const conversationGqlType = typeFromObject(conversation);
+
+    const conversationIdObj = new AppSync.ObjectType("ConversationId", {
+        definition: {
+            conversationId: conversationId
+        }
+    });
+    const conversationIdGqlType = typeFromObject(conversationIdObj);
 
     const userConversation = new AppSync.ObjectType("UserConversation", {
         definition: {
@@ -95,6 +102,7 @@ export const ChatSchema = (): AppSync.Schema => {
     schema.addType(userConversation);
     schema.addType(userConversationConnection);
     schema.addType(directMessageConversation);
+    schema.addType(conversationIdObj);
 
     /* Add queries to the schema */
     
@@ -141,7 +149,7 @@ export const ChatSchema = (): AppSync.Schema => {
 
     // Create a Conversation. Use some of the cooked in template functions for UUID and DateTime.
     schema.addMutation("createConversation", new AppSync.Field({
-        returnType: conversationGqlType,
+        returnType: conversationIdGqlType,
         args: {
             recipientId: userId,
             name: AppSync.GraphqlType.string({ isRequired: true })
@@ -155,7 +163,7 @@ export const ChatSchema = (): AppSync.Schema => {
             content: AppSync.GraphqlType.string(),
             conversationId: conversationId,
             createdAt: AppSync.GraphqlType.string({ isRequired: true }),
-            id: messageId,
+            messageId: messageId,
             recipientId: userId
         }
     }));
