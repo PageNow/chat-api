@@ -5,8 +5,12 @@ Resources:
       KeySchema:
         - AttributeName: conversationId
           KeyType: HASH
+        - AttributeName: updatedAt
+          KeyType: RANGE
       AttributeDefinitions:
         - AttributeName: conversationId
+          AttributeType: S
+        - AttributeName: updatedAt
           AttributeType: S
       BillingMode: PAY_PER_REQUEST
     UpdateReplacePolicy: Retain
@@ -80,6 +84,12 @@ Resources:
             Principal:
               Service: lambda.amazonaws.com
         Version: "2012-10-17"
+      ManagedPolicyArns:
+        - Fn::Join:
+            - ""
+            - - "arn:"
+              - Ref: AWS::Partition
+              - :iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
     Metadata:
       aws:cdk:path: ChatApiStack/LambdaExecutionRole/Resource
   LambdaExecutionRoleDefaultPolicy6D69732F:
@@ -87,7 +97,14 @@ Resources:
     Properties:
       PolicyDocument:
         Statement:
-          - Action: dynamodb:*
+          - Action:
+              - dynamodb:BatchGetItem
+              - dynamodb:GetItem
+              - dynamodb:Query
+              - dynamodb:Scan
+              - dynamodb:BatchWriteItem
+              - dynamodb:PutItem
+              - dynamodb:UpdateItem
             Effect: Allow
             Resource:
               - Fn::GetAtt:
@@ -145,7 +162,7 @@ Resources:
     Properties:
       Code:
         S3Bucket:
-          Ref: AssetParameters3da3d3c96e882cb4d86560fd8f29d2404b7d79bcea07b7d2e7c1c0be32da19a3S3Bucket2DB0068C
+          Ref: AssetParametersa30290aa7e3eb2a4d7211cde8a47b7a2ce25844fab4ffd95ecee7eebe57f8ac3S3Bucket09181F7D
         S3Key:
           Fn::Join:
             - ""
@@ -153,16 +170,24 @@ Resources:
                   - 0
                   - Fn::Split:
                       - "||"
-                      - Ref: AssetParameters3da3d3c96e882cb4d86560fd8f29d2404b7d79bcea07b7d2e7c1c0be32da19a3S3VersionKey9E40B7AA
+                      - Ref: AssetParametersa30290aa7e3eb2a4d7211cde8a47b7a2ce25844fab4ffd95ecee7eebe57f8ac3S3VersionKeyA417BBC2
               - Fn::Select:
                   - 1
                   - Fn::Split:
                       - "||"
-                      - Ref: AssetParameters3da3d3c96e882cb4d86560fd8f29d2404b7d79bcea07b7d2e7c1c0be32da19a3S3VersionKey9E40B7AA
+                      - Ref: AssetParametersa30290aa7e3eb2a4d7211cde8a47b7a2ce25844fab4ffd95ecee7eebe57f8ac3S3VersionKeyA417BBC2
       Role:
         Fn::GetAtt:
           - LambdaExecutionRoleD5C26073
           - Arn
+      Environment:
+        Variables:
+          CONVERSATION_TABLE_NAME:
+            Ref: ConversationTable75C14D21
+          USER_CONVERSATION_TABLE_NAME:
+            Ref: UserConversationTable49EB8B67
+          DIRECT_MESSAGE_CONVERSATION_TABLE_NAME:
+            Ref: DirectMessageConversationTable4AA78A41
       Handler: create_conversation.handler
       Layers:
         - Ref: lambdaModuleE2C8C55A
@@ -229,7 +254,9 @@ Resources:
           conversationId: ID!
           name: String!
           createdAt: String
-          messages(after: String first: Int): DirectMessageConnection
+          updatedAt: String
+          latestMessage: String
+          latestSenderId: String
         }
         type DirectMessage {
           senderId: ID!
@@ -246,37 +273,27 @@ Resources:
           nextToken: String
         }
         type UserConversation {
-          conversation: Conversation
-          conversationId: ID!
           userId: ID!
-        }
-        type UserConversationConnection {
-          nextToken: String
-          userConversations: [UserConversation]
+          conversations: [Conversation]
         }
         type DirectMessageConversation {
           userPairId: ID!
           conversationId: String
         }
-        type ConversationId {
-          conversationId: ID!
-        }
         type Query {
+          allUserConversations: UserConversation
           allDirectMessages(after: String conversationId: ID! first: Int): [DirectMessage]
           allDirectMessagesConnection(after: String conversationId: ID! first: Int): DirectMessageConnection
           allDirectMessagesFrom(after: String conversationId: ID! first: Int senderId: String!): [DirectMessage]
           directMessageConversation(userPairId: ID!): DirectMessageConversation
         }
         type Mutation {
-          createConversation(recipientId: ID! name: String!): ConversationId
+          createConversation(recipientId: ID! name: String!): Conversation
           createDirectMessage(content: String conversationId: ID! createdAt: String! messageId: ID! recipientId: ID!): DirectMessage
-          createUserConversation(conversationId: ID! userId: ID!): UserConversation
         }
         type Subscription {
           subscribeToNewMessage(recipientId: ID!): DirectMessage
           @aws_subscribe(mutations: ["createDirectMessage"])
-          subscribeToNewUserConversation(userId: ID!): UserConversation
-          @aws_subscribe(mutations: ["createUserConversation"])
         }
     Metadata:
       aws:cdk:path: ChatApiStack/ChatAPI/Schema
@@ -341,14 +358,14 @@ Resources:
           - Arn
     Metadata:
       aws:cdk:path: ChatApiStack/ChatAPI/conversationDS/Resource
-  ChatAPIconversationDSUserConversationconversationResolver9B8DA0CB:
+  ChatAPIconversationDSUserConversationconversationsResolver904A456B:
     Type: AWS::AppSync::Resolver
     Properties:
       ApiId:
         Fn::GetAtt:
           - ChatAPID12E9E7A
           - ApiId
-      FieldName: conversation
+      FieldName: conversations
       TypeName: UserConversation
       DataSourceName: conversationDS
       Kind: UNIT
@@ -358,7 +375,7 @@ Resources:
                 "version" : "2017-02-28",
                 "operation" : "GetItem",
                 "key" : {
-                    "id" : { "S" : "${context.source.conversationId}" }
+                    "conversationId" : { "S" : "$ctx.source.conversationId" }
                 }
             }
       ResponseMappingTemplate: $util.toJson($ctx.result)
@@ -366,7 +383,7 @@ Resources:
       - ChatAPIconversationDS8E85B190
       - ChatAPISchemaE04B1A3A
     Metadata:
-      aws:cdk:path: ChatApiStack/ChatAPI/conversationDS/UserConversationconversationResolver/Resource
+      aws:cdk:path: ChatApiStack/ChatAPI/conversationDS/UserConversationconversationsResolver/Resource
   ChatAPImessageDSServiceRole5B01BD53:
     Type: AWS::IAM::Role
     Properties:
@@ -638,37 +655,37 @@ Resources:
           - Arn
     Metadata:
       aws:cdk:path: ChatApiStack/ChatAPI/userConversationDS/Resource
-  ChatAPIuserConversationDSMutationcreateUserConversationResolver10314CCE:
+  ChatAPIuserConversationDSQueryallUserConversationsResolver1F45F1B4:
     Type: AWS::AppSync::Resolver
     Properties:
       ApiId:
         Fn::GetAtt:
           - ChatAPID12E9E7A
           - ApiId
-      FieldName: createUserConversation
-      TypeName: Mutation
+      FieldName: allUserConversations
+      TypeName: Query
       DataSourceName: userConversationDS
       Kind: UNIT
       RequestMappingTemplate: |2
         
             {
                 "version" : "2017-02-28",
-                "operation" : "PutItem",
-                "key": {
-                    "userId": { "S" : "${context.arguments.userId}"},
-                    "conversationId": { "S" : "${context.arguments.conversationId}"}
-                },
-                "attributeValues" : {
-                    "userId": {  "S": "${context.arguments.userId}" },
-                    "conversationId": {  "S": "${context.arguments.conversationId}" }
+                "operation" : "Query",
+                "query": {
+                    "expression": "userId = :userId",
+                    "expressionValues": {
+                        ":userId": {
+                            "S": "$ctx.identity.sub"
+                        }
+                    }
                 }
             }
-      ResponseMappingTemplate: $util.toJson($ctx.result)
+      ResponseMappingTemplate: $util.toJson($ctx.result.items)
     DependsOn:
       - ChatAPISchemaE04B1A3A
       - ChatAPIuserConversationDSB89FD89A
     Metadata:
-      aws:cdk:path: ChatApiStack/ChatAPI/userConversationDS/MutationcreateUserConversationResolver/Resource
+      aws:cdk:path: ChatApiStack/ChatAPI/userConversationDS/QueryallUserConversationsResolver/Resource
   ChatAPIuserPairConversationDSServiceRole5FA54A76:
     Type: AWS::IAM::Role
     Properties:
@@ -838,15 +855,15 @@ Parameters:
   AssetParameterscd65941c739bdff7654fcb1a2a1cc76b107710fa5cc00a2208186aea94d25a15ArtifactHash89D4D241:
     Type: String
     Description: Artifact hash for asset "cd65941c739bdff7654fcb1a2a1cc76b107710fa5cc00a2208186aea94d25a15"
-  AssetParameters3da3d3c96e882cb4d86560fd8f29d2404b7d79bcea07b7d2e7c1c0be32da19a3S3Bucket2DB0068C:
+  AssetParametersa30290aa7e3eb2a4d7211cde8a47b7a2ce25844fab4ffd95ecee7eebe57f8ac3S3Bucket09181F7D:
     Type: String
-    Description: S3 bucket for asset "3da3d3c96e882cb4d86560fd8f29d2404b7d79bcea07b7d2e7c1c0be32da19a3"
-  AssetParameters3da3d3c96e882cb4d86560fd8f29d2404b7d79bcea07b7d2e7c1c0be32da19a3S3VersionKey9E40B7AA:
+    Description: S3 bucket for asset "a30290aa7e3eb2a4d7211cde8a47b7a2ce25844fab4ffd95ecee7eebe57f8ac3"
+  AssetParametersa30290aa7e3eb2a4d7211cde8a47b7a2ce25844fab4ffd95ecee7eebe57f8ac3S3VersionKeyA417BBC2:
     Type: String
-    Description: S3 key for asset version "3da3d3c96e882cb4d86560fd8f29d2404b7d79bcea07b7d2e7c1c0be32da19a3"
-  AssetParameters3da3d3c96e882cb4d86560fd8f29d2404b7d79bcea07b7d2e7c1c0be32da19a3ArtifactHashD34EB50D:
+    Description: S3 key for asset version "a30290aa7e3eb2a4d7211cde8a47b7a2ce25844fab4ffd95ecee7eebe57f8ac3"
+  AssetParametersa30290aa7e3eb2a4d7211cde8a47b7a2ce25844fab4ffd95ecee7eebe57f8ac3ArtifactHashD5B9CEAA:
     Type: String
-    Description: Artifact hash for asset "3da3d3c96e882cb4d86560fd8f29d2404b7d79bcea07b7d2e7c1c0be32da19a3"
+    Description: Artifact hash for asset "a30290aa7e3eb2a4d7211cde8a47b7a2ce25844fab4ffd95ecee7eebe57f8ac3"
 Outputs:
   chatapi:
     Description: Chat api endpoint

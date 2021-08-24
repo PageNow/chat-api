@@ -8,12 +8,16 @@ import * as Cognito from '@aws-cdk/aws-cognito';
 import * as Lambda from '@aws-cdk/aws-lambda';
 
 import { ChatSchema } from './schema';
+import { createDirectMessageRequestStr } from "./resolver-mapping-str/createDirectMessage";
+import { conversationUserConversationRequestStr } from "./resolver-mapping-str/conversationUserConversation";
+import { allUserConversationsRequestStr, allUserConversationsResponseStr } from "./resolver-mapping-str/allUserConversations";
 import {
-    createDirectMessageRequestStr, createUserConversationRequestStr,
-    conversationUserConversationRequestStr, allDirectMessagesConnectionRequestStr,
+    allDirectMessagesConnectionRequestStr,
     allDirectMessagesConnectionResponseStr, allDirectMessagesRequestStr,
-    allDirectMessagesFromRequestStr, directMessageConversationRequestStr
+    allDirectMessagesFromRequestStr
 } from './map-template-str';
+
+const MAPPING_TEMPLATE_DIRNAME = 'mappingTemplates';
 
 // Interface used as parameter to create resolvers for API
 interface ResolverOptions {
@@ -194,12 +198,33 @@ export class ChatApiStack extends CDK.Stack {
         const userConversationDS = this.api.addDynamoDbDataSource("userConversationDS", userConversationTable);
         const directMessageConversationDS = this.api.addDynamoDbDataSource("userPairConversationDS", directMessageConversationTable);
 
-        // conversationDS.createResolver({
-        //     typeName: "Mutation",
-        //     fieldName: "createConversation",
-        //     requestMappingTemplate: AppSync.MappingTemplate.fromString(createConversationRequestStr),
-        //     responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultItem()
-        // });
+        // Add type resolvers
+        conversationDS.createResolver({
+            typeName: "UserConversation",
+            fieldName: "conversations",
+            requestMappingTemplate: AppSync.MappingTemplate.fromString(conversationUserConversationRequestStr),
+            responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultItem()
+        });
+
+        // Add query resolvers
+
+        directMessageConversationDS.createResolver({
+            typeName: "Query",
+            fieldName: "getDmConversation",
+            requestMappingTemplate: AppSync.MappingTemplate.fromFile(
+                path.resolve(__dirname, MAPPING_TEMPLATE_DIRNAME, 'Query.getDmConversation.request.vtl')
+            ),
+            responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultItem()
+        });
+
+        // Querying from userConversation table
+        userConversationDS.createResolver({
+            typeName: "Query",
+            fieldName: "allUserConversations",
+            requestMappingTemplate: AppSync.MappingTemplate.fromString(allUserConversationsRequestStr),
+            responseMappingTemplate: AppSync.MappingTemplate.fromString(allUserConversationsResponseStr)
+        });
+        
 
         directMessageDS.createResolver({
             typeName: "Mutation",
@@ -208,19 +233,7 @@ export class ChatApiStack extends CDK.Stack {
             responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultItem()
         });
 
-        userConversationDS.createResolver({
-            typeName: "Mutation",
-            fieldName: "createUserConversation",
-            requestMappingTemplate: AppSync.MappingTemplate.fromString(createUserConversationRequestStr),
-            responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultItem()
-        });
-
-        conversationDS.createResolver({
-            typeName: "UserConversation",
-            fieldName: "conversation",
-            requestMappingTemplate: AppSync.MappingTemplate.fromString(conversationUserConversationRequestStr),
-            responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultItem()
-        });
+        
 
         directMessageDS.createResolver({
             typeName: "Query",
@@ -241,13 +254,6 @@ export class ChatApiStack extends CDK.Stack {
             fieldName: "allDirectMessagesFrom",
             requestMappingTemplate: AppSync.MappingTemplate.fromString(allDirectMessagesFromRequestStr),
             responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultList()
-        });
-
-        directMessageConversationDS.createResolver({
-            typeName: "Query",
-            fieldName: "directMessageConversation",
-            requestMappingTemplate: AppSync.MappingTemplate.fromString(directMessageConversationRequestStr),
-            responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultItem()
         });
 
         // Add Lambda resolver

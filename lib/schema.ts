@@ -50,41 +50,21 @@ export const ChatSchema = (): AppSync.Schema => {
             conversationId: conversationId,
             name: AppSync.GraphqlType.string({ isRequired: true }),
             createdAt: AppSync.GraphqlType.string(),
-            // messages(after: String, first: Int): MessageConnection
-            messages: new AppSync.Field({
-                returnType: directMessageConnectionGqlType,
-                args: {
-                    after: AppSync.GraphqlType.string(),
-                    first: AppSync.GraphqlType.int()
-                }
-            })
+            updatedAt: AppSync.GraphqlType.string(),
+            latestMessage: AppSync.GraphqlType.string(),
+            latestSenderId: AppSync.GraphqlType.string()
         }
     });
     const conversationGqlType = typeFromObject(conversation);
-
-    const conversationIdObj = new AppSync.ObjectType("ConversationId", {
-        definition: {
-            conversationId: conversationId
-        }
-    });
-    const conversationIdGqlType = typeFromObject(conversationIdObj);
+    const conversationArrGqlType = typeFromObject(conversation, { isList: true });
 
     const userConversation = new AppSync.ObjectType("UserConversation", {
         definition: {
-            conversation: conversationGqlType,
-            conversationId: conversationId,
-            userId: userId
+            userId: userId,
+            conversations: conversationArrGqlType,            
         }
     });
     const userConversationGqlType = typeFromObject(userConversation);
-    const userConversationArrGqlType = typeFromObject(userConversation, { isList: true });
-
-    const userConversationConnection = new AppSync.ObjectType("UserConversationConnection", {
-        definition: {
-            nextToken: AppSync.GraphqlType.string(),
-            userConversations: userConversationArrGqlType
-        }
-    });
 
     // used to retrieve conversation id of dms between a pair of users
     const userPairId = AppSync.GraphqlType.id({ isRequired: true });
@@ -100,11 +80,13 @@ export const ChatSchema = (): AppSync.Schema => {
     schema.addType(directMessage);
     schema.addType(directMessageConnection);
     schema.addType(userConversation);
-    schema.addType(userConversationConnection);
     schema.addType(directMessageConversation);
-    schema.addType(conversationIdObj);
 
     /* Add queries to the schema */
+
+    schema.addQuery("allUserConversations", new AppSync.Field({
+        returnType: userConversationGqlType
+    }));
     
     // Scan through all values of type 'Message'. Use the 'after' and 'before' arguments with the
     // 'nextToken' returned by the 'MessageConnection' result to fetch pages.
@@ -138,7 +120,7 @@ export const ChatSchema = (): AppSync.Schema => {
         }
     }));
 
-    schema.addQuery("directMessageConversation", new AppSync.Field({
+    schema.addQuery("getDmConversation", new AppSync.Field({
         returnType: directMessageConversationGqlType,
         args: {
             userPairId
@@ -149,7 +131,7 @@ export const ChatSchema = (): AppSync.Schema => {
 
     // Create a Conversation. Use some of the cooked in template functions for UUID and DateTime.
     schema.addMutation("createConversation", new AppSync.Field({
-        returnType: conversationIdGqlType,
+        returnType: conversationGqlType,
         args: {
             recipientId: userId,
             name: AppSync.GraphqlType.string({ isRequired: true })
@@ -168,16 +150,6 @@ export const ChatSchema = (): AppSync.Schema => {
         }
     }));
 
-    // Put a single value of type 'UserConversations'. If an item does not exist with the same key the item will be created.
-    // If there exists an item at that key already, it will be updated.
-    schema.addMutation("createUserConversation", new AppSync.Field({
-        returnType: userConversationGqlType,
-        args: {
-            conversationId: conversationId,
-            userId: userId
-        }
-    }));
-
     /* Add subscription to schema */
     
     // Subscribes to all new messages in a given Conversation.
@@ -185,12 +157,6 @@ export const ChatSchema = (): AppSync.Schema => {
         returnType: directMessageGqlType,
         args: { recipientId: userId },
         directives: [ AppSync.Directive.subscribe("createDirectMessage") ]
-    }));
-
-    schema.addSubscription("subscribeToNewUserConversation", new AppSync.Field({
-        returnType: userConversationGqlType,
-        args: { userId: userId },
-        directives: [ AppSync.Directive.subscribe("createUserConversation") ]
     }));
 
     return schema;
