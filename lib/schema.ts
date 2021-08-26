@@ -47,12 +47,10 @@ export const ChatSchema = (): AppSync.Schema => {
 
     const conversation = new AppSync.ObjectType("Conversation", {
         definition: {
-            conversationId: conversationId,
-            name: AppSync.GraphqlType.string({ isRequired: true }),
-            createdAt: AppSync.GraphqlType.string(),
-            updatedAt: AppSync.GraphqlType.string(),
-            latestMessage: AppSync.GraphqlType.string(),
-            latestSenderId: AppSync.GraphqlType.string()
+            conversation_id: conversationId,
+            title: AppSync.GraphqlType.string({ isRequired: true }),
+            created_by: AppSync.GraphqlType.string(),
+            created_at: AppSync.GraphqlType.string()
         }
     });
     const conversationGqlType = typeFromObject(conversation);
@@ -120,7 +118,7 @@ export const ChatSchema = (): AppSync.Schema => {
         }
     }));
 
-    schema.addQuery("getDmConversation", new AppSync.Field({
+    schema.addQuery("getDirectConversation", new AppSync.Field({
         returnType: directMessageConversationGqlType,
         args: {
             userPairId
@@ -134,7 +132,7 @@ export const ChatSchema = (): AppSync.Schema => {
         returnType: conversationGqlType,
         args: {
             recipientId: userId,
-            name: AppSync.GraphqlType.string({ isRequired: true })
+            title: AppSync.GraphqlType.string({ isRequired: true })
         }
     }));
 

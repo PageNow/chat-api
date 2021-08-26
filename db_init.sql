@@ -1,9 +1,8 @@
 CREATE TABLE conversation_table (
     conversation_id uuid PRIMARY KEY,
     title VARCHAR(300) NOT NULL,
-    created_at TIMESTAMP DEFAULT TIMEZONE('UTC', NOW()),
     created_by VARCHAR(50) NOT NULL,
-    updated_at TIMESTAMP DEFAULT TIMEZONE('UTC', NOW()),
+    created_at TIMESTAMP DEFAULT TIMEZONE('UTC', NOW())
 );
 
 CREATE TABLE participant_table (
@@ -15,9 +14,9 @@ CREATE TABLE participant_table (
         FOREIGN KEY (conversation_id)
         REFERENCES conversation_table(conversation_id)
 );
-CREATE INDEX user_idx ON user_conversation_table(user_id);
+CREATE INDEX user_idx ON participant_table(user_id);
 
-CREATE TABLE user_pair_table (
+CREATE TABLE direct_conversation_table (
     user_pair_id VARCHAR(100) PRIMARY KEY,
     conversation_id uuid,
     CONSTRAINT fk_conversation
@@ -26,7 +25,7 @@ CREATE TABLE user_pair_table (
 );
 
 CREATE TABLE direct_message_table (
-    message_id uuid DEFAULT uuid_generate_v4(),
+    message_id uuid,
     conversation_id uuid,
     created_at TIMESTAMP DEFAULT TIMEZONE('UTC', NOW()),
     sender_id VARCHAR(50) NOT NULL,

@@ -1,12 +1,11 @@
-const AWS = require('aws-sdk');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 
-const conversationTableName = process.env.CONVERSATION_TABLE_NAME;
-const userConversationTableName = process.env.USER_CONVERSATION_TABLE_NAME;
-const directMessageConversationTable = process.env.DIRECT_MESSAGE_CONVERSATION_TABLE_NAME;
-
-const dynamoDB = new AWS.DynamoDB.DocumentClient({ region: 'us-east-1' });
+const db = require('data-api-client')({
+    secretArn: process.env.DB_SECRET_ARN,
+    resourceArn: process.env.DB_CLUSTER_ARN,
+    database: process.env.DB_NAME
+});
 
 exports.handler = async function(event) {
     const recipientId = event && event.arguments && event.arguments.recipientId;
@@ -14,9 +13,9 @@ exports.handler = async function(event) {
         throw new Error("Missing argument 'recipientId'");
     }
 
-    const name = event && event.arguments && event.arguments.name;
-    if (name === undefined || name === null) {
-        throw new Error("Missing argument 'name'");
+    const title = event && event.arguments && event.arguments.title;
+    if (title === undefined || title === null) {
+        throw new Error("Missing argument 'title'");
     }
 
     const decodedJwt = jwt.decode(event.request.headers.authorization, { complete: true });
@@ -25,59 +24,66 @@ exports.handler = async function(event) {
     }
     const userId = decodedJwt.payload['cognito:username'];
 
-    const createdAt = new Date().toISOString();
     const conversationId = uuidv4();
     const userPairId = userId < recipientId ?
             userId + ' ' + recipientId : recipientId + ' ' + userId;
-    console.log(createdAt);
     console.log(conversationId);
     console.log(userPairId);
 
     try {
-        await dynamoDB.transactWrite({
-            TransactItems: [{
-                Put: {
-                    TableName: conversationTableName,
-                    Item: {
-                        conversationId: conversationId,
-                        name: name,
-                        createdAt: createdAt,
-                        createdBy: userId,
-                        updatedAt: createdAt,
-                        latestMessage: null,
-                        latestSenderId: userId,
+        await db.query("BEGIN");
+
+        try {
+            await db.query(
+                "INSERT INTO conversation_table (conversation_id, title, created_by) \
+                VALUES (:conversationId, :title, :createdBy)",
+                { conversationId, title, createdBy }
+            );
+            
+            try {
+                await db.query(
+                    "INSERT INTO direct_conversation_table (user_pair_id, conversation_id) \
+                    VALUES (:userPairId, :conversationId )",
+                    { userPairId, conversationId }
+                );
+
+                try {
+                    await db.query(
+                        "INSERT INTO participant_table (user_id, conversation_id) \
+                        VALUES (:userId, :conversationId)",
+                        [
+                            [{ userId: userId, conversationId: conversationId }],
+                            [{ userId: recipientId, conversationId: conversationId }]
+                        ]
+                    );
+
+                    try {
+                        await db.query("COMMIT");
+                    } catch (err) {
+                        await db.query("ROLLBACK");
+                        console.log('Postgres error: ', err);
+                        return err;
                     }
+                } catch (err) {
+                    await db.query("ROLLBACK");
+                    console.log('Postgres error: ', err);
+                    return err;
                 }
-            }, {
-                Put: {
-                    TableName: userConversationTableName,
-                    Item: {
-                        conversationId: conversationId,
-                        userId: userId
-                    }
-                }
-            }, {
-                Put: {
-                    TableName: userConversationTableName,
-                    Item: {
-                        conversationId: conversationId,
-                        userId: recipientId
-                    }
-                }
-            }, {
-                Put: {
-                    TableName: directMessageConversationTable,
-                    Item: {
-                        userPairId: userPairId,
-                        conversationId: conversationId
-                    }
-                }
-            }]
-        }).promise();
-        console.log({ conversationId });
-        return { conversationId }
-    } catch (error) {
-        console.log(error);
-        return error;
+            } catch (err) {
+                await db.query("ROLLBACK");
+                console.log('Postgres error: ', err);
+                return err;
+            }
+        } catch (err) {
+            await db.query("ROLLBACK");
+            console.log('Postgres error: ', err);
+            return err;
+        }
+
+    } catch (err) {
+        console.log('Postgres error: ', err);
+        return err;
     }
+    
+    return { conversationId };
 }

@@ -1,23 +1,16 @@
 import * as path from "path";
 
 import * as CDK from '@aws-cdk/core';
-import * as DDB from '@aws-cdk/aws-dynamodb';
 import * as IAM from '@aws-cdk/aws-iam';
 import * as AppSync from '@aws-cdk/aws-appsync';
 import * as Cognito from '@aws-cdk/aws-cognito';
 import * as Lambda from '@aws-cdk/aws-lambda';
+import * as RDS from '@aws-cdk/aws-rds';
+import * as EC2 from '@aws-cdk/aws-ec2';
 
 import { ChatSchema } from './schema';
-import { createDirectMessageRequestStr } from "./resolver-mapping-str/createDirectMessage";
-import { conversationUserConversationRequestStr } from "./resolver-mapping-str/conversationUserConversation";
-import { allUserConversationsRequestStr, allUserConversationsResponseStr } from "./resolver-mapping-str/allUserConversations";
-import {
-    allDirectMessagesConnectionRequestStr,
-    allDirectMessagesConnectionResponseStr, allDirectMessagesRequestStr,
-    allDirectMessagesFromRequestStr
-} from './map-template-str';
 
-const MAPPING_TEMPLATE_DIRNAME = 'mappingTemplates';
+const DB_NAME = 'ChatDB';
 
 // Interface used as parameter to create resolvers for API
 interface ResolverOptions {
@@ -31,6 +24,7 @@ export class ChatApiStack extends CDK.Stack {
     readonly api: AppSync.GraphqlApi;
 
     private lambdaLayer: Lambda.LayerVersion;
+    
     // Lambda functions are stored by name
     private functions: { [key: string]: Lambda.Function } = {};
 
@@ -40,15 +34,16 @@ export class ChatApiStack extends CDK.Stack {
      *  
      * @param name - name of the function
      */
-     private addFunction = (name: string, role: any): void => {
+     private addFunction = (name: string, environment: {[key: string]: string}, cluster: RDS.ServerlessCluster): void => {
         const fn = new Lambda.Function(this, name, {
             code: Lambda.Code.fromAsset(path.resolve(__dirname, `../src/functions/${name}`)),
             runtime: Lambda.Runtime.NODEJS_12_X,
             handler: `${name}.handler`,
-            role: role
+            environment: environment
         });
         fn.addLayers(this.lambdaLayer);
         this.functions[name] = fn;
+        cluster.grantDataApiAccess(fn);
     };
 
     /**
@@ -82,91 +77,57 @@ export class ChatApiStack extends CDK.Stack {
     constructor(scope: CDK.Construct, id: string, props?: CDK.StackProps) {
         super(scope, id, props);
 
-        const conversationTable = new DDB.Table(this, 'ConversationTable', {
-            billingMode: DDB.BillingMode.PAY_PER_REQUEST,
-            partitionKey: {
-                name: "conversationId",
-                type: DDB.AttributeType.STRING
-            }
-        });
-
-        const directMessageTable = new DDB.Table(this, 'DirectMessageTable', {
-            billingMode: DDB.BillingMode.PAY_PER_REQUEST,
-            partitionKey: {
-                name: "conversationId",
-                type: DDB.AttributeType.STRING
-            },
-            sortKey: {
-                name: "createdAt",
-                type: DDB.AttributeType.STRING
-            }
-        });
-
-        const userConversationTable = new DDB.Table(this, 'UserConversationTable', {
-            billingMode: DDB.BillingMode.PAY_PER_REQUEST,
-            partitionKey: {
-                name: "userId",
-                type: DDB.AttributeType.STRING
-            },
-            sortKey: {
-                name: "conversationId",
-                type: DDB.AttributeType.STRING
-            }
-        });
-        userConversationTable.addGlobalSecondaryIndex({
-            indexName: "conversationId-index",
-            partitionKey: {
-                name: "conversationId",
-                type: DDB.AttributeType.STRING
-            }
-        });
-
-        const directMessageConversationTable = new DDB.Table(this, 'DirectMessageConversationTable', {
-            billingMode: DDB.BillingMode.PAY_PER_REQUEST,
-            partitionKey: {
-                name: "userPairId",
-                type: DDB.AttributeType.STRING
-            }
-        });
-
         /**
-         * Create roles
+         * Set up PostgreSQL
          */
-        const lambdaRole = new IAM.Role(this, 'LambdaExecutionRole', {
-            assumedBy: new IAM.ServicePrincipal('lambda.amazonaws.com')
-        });
-        lambdaRole.addToPolicy(new IAM.PolicyStatement({
-            effect: IAM.Effect.ALLOW,
-            resources: [
-                conversationTable.tableArn,
-                directMessageTable.tableArn,
-                userConversationTable.tableArn,
-                `${userConversationTable.tableArn}/index/conversationId-index`,
-                directMessageConversationTable.tableArn
-            ],
-            actions: [
-                "dynamodb:BatchGetItem",
-                "dynamodb:GetItem",
-                "dynamodb:Query",
-                "dynamodb:Scan",
-                "dynamodb:BatchWriteItem",
-                "dynamodb:PutItem",
-                "dynamodb:UpdateItem"
-            ]
-        }));
-        lambdaRole.addManagedPolicy(IAM.ManagedPolicy.fromAwsManagedPolicyName("service-role/AWSLambdaBasicExecutionRole"));
+        const vpc = new EC2.Vpc(this, 'ChatVPC');
+        // const dbCluster = new RDS.DatabaseCluster(this, 'ChatCluster', {
+        //     engine: RDS.DatabaseClusterEngine.auroraPostgres({ version: RDS.AuroraPostgresEngineVersion.VER_11_6 }),
+        //     parameterGroup: RDS.ParameterGroup.fromParameterGroupName(this, 'ParameterGroup', 'default.aurora-postgresql11'),
+        //     instanceProps: {
+        //         instanceType: EC2.InstanceType.of(EC2.InstanceClass.BURSTABLE3, EC2.InstanceSize.MEDIUM),
+        //         vpcSubnets: {
+        //           subnetType: EC2.SubnetType.PRIVATE,
+        //         },
+        //         vpc,
+        //     },
+        //     defaultDatabaseName: DB_NAME
+        // });
+        // const dbClusterArn = `arn:aws:rds:${this.region}:${this.account}:cluster:${dbCluster.clusterIdentifier}`;
 
-        /**
-         * Create Lambda functions
-         */
-        this.lambdaLayer = new Lambda.LayerVersion(this, "lambdaModule", {
-            code: Lambda.Code.fromAsset(path.join(__dirname, '../src/layer')),
-            compatibleRuntimes: [Lambda.Runtime.NODEJS_12_X],
-            layerVersionName: "chatLayer"
+        // const dbProxy = new RDS.DatabaseProxy(this, 'ChatClusterProxy', {
+        //     proxyTarget: RDS.ProxyTarget.fromCluster(dbCluster),
+        //     secrets: [dbCluster.secret!],
+        //     vpc,
+        // });
+        // const role = new IAM.Role(this, 'ChatClusterProxyRole', {
+        //     assumedBy: new IAM.ServicePrincipal('lambda.amazonaws.com')
+        // });
+        // dbProxy.grantConnect(role, 'admin'); // Grant the role connection access to the DB Proxy for database user 'admin'.
+        // const dbClusterArn = `arn:aws:rds:${this.region}:${this.account}:cluster:${dbCluster.clusterIdentifier}`;
+
+        // const dbClusterEnv = {
+        //     "DB_CLUSTER_ARN": dbClusterArn,
+        //     "DB_SECRET_ARN": dbCluster.secret?.secretArn || '',
+        //     "DB_NAME": DB_NAME
+        // };
+
+        const dbCluster = new RDS.ServerlessCluster(this, 'ChatCluster', {
+            engine: RDS.DatabaseClusterEngine.AURORA_POSTGRESQL,
+            parameterGroup: RDS.ParameterGroup.fromParameterGroupName(this, 'ParameterGroup', 'default.aurora-postgresql10'),
+            vpc,
+            scaling: {
+                autoPause: CDK.Duration.minutes(5), // default is to pause after 5 minutes of idle time
+                minCapacity: RDS.AuroraCapacityUnit.ACU_2, // default is 2 Aurora capacity units (ACUs)
+                maxCapacity: RDS.AuroraCapacityUnit.ACU_4, // default is 16 Aurora capacity units (ACUs)
+            },
+            defaultDatabaseName: DB_NAME
         });
-        ['create_conversation'].forEach(
-            (fn) => { this.addFunction(fn, lambdaRole) }
-        );
+        const dbClusterEnv = {
+            "DB_CLUSTER_ARN": dbCluster.clusterArn,
+            "DB_SECRET_ARN": dbCluster.secret?.secretArn || '',
+            "DB_NAME": DB_NAME
+        };
 
         /**
          * Retrieve existing user pool
@@ -191,92 +152,80 @@ export class ChatApiStack extends CDK.Stack {
         });
 
         /**
-         * Add resolvers
+         * Create Lambda functions
          */
-        const conversationDS = this.api.addDynamoDbDataSource("conversationDS", conversationTable);
-        const directMessageDS = this.api.addDynamoDbDataSource("messageDS", directMessageTable);
-        const userConversationDS = this.api.addDynamoDbDataSource("userConversationDS", userConversationTable);
-        const directMessageConversationDS = this.api.addDynamoDbDataSource("userPairConversationDS", directMessageConversationTable);
-
-        // Add type resolvers
-        conversationDS.createResolver({
-            typeName: "UserConversation",
-            fieldName: "conversations",
-            requestMappingTemplate: AppSync.MappingTemplate.fromString(conversationUserConversationRequestStr),
-            responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultItem()
-        });
-
-        // Add query resolvers
-
-        directMessageConversationDS.createResolver({
-            typeName: "Query",
-            fieldName: "getDmConversation",
-            requestMappingTemplate: AppSync.MappingTemplate.fromFile(
-                path.resolve(__dirname, MAPPING_TEMPLATE_DIRNAME, 'Query.getDmConversation.request.vtl')
-            ),
-            responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultItem()
-        });
-
-        // Querying from userConversation table
-        userConversationDS.createResolver({
-            typeName: "Query",
-            fieldName: "allUserConversations",
-            requestMappingTemplate: AppSync.MappingTemplate.fromString(allUserConversationsRequestStr),
-            responseMappingTemplate: AppSync.MappingTemplate.fromString(allUserConversationsResponseStr)
+         this.lambdaLayer = new Lambda.LayerVersion(this, "lambdaModule", {
+            code: Lambda.Code.fromAsset(path.join(__dirname, '../src/layer')),
+            compatibleRuntimes: [Lambda.Runtime.NODEJS_12_X],
+            layerVersionName: "chatLayer"
         });
         
-
-        directMessageDS.createResolver({
-            typeName: "Mutation",
-            fieldName: "createDirectMessage",
-            requestMappingTemplate: AppSync.MappingTemplate.fromString(createDirectMessageRequestStr),
-            responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultItem()
-        });
-
-        
-
-        directMessageDS.createResolver({
-            typeName: "Query",
-            fieldName: "allDirectMessagesConnection",
-            requestMappingTemplate: AppSync.MappingTemplate.fromString(allDirectMessagesConnectionRequestStr),
-            responseMappingTemplate: AppSync.MappingTemplate.fromString(allDirectMessagesConnectionResponseStr)
-        });
-
-        directMessageDS.createResolver({
-            typeName: "Query",
-            fieldName: "allDirectMessages",
-            requestMappingTemplate: AppSync.MappingTemplate.fromString(allDirectMessagesRequestStr),
-            responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultList()
-        });
-
-        directMessageDS.createResolver({
-            typeName: "Query",
-            fieldName: "allDirectMessagesFrom",
-            requestMappingTemplate: AppSync.MappingTemplate.fromString(allDirectMessagesFromRequestStr),
-            responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultList()
-        });
-
-        // Add Lambda resolver
-        this.createLambdaResolver("Mutation", "createConversation", { source: "create_conversation" })
+        ['create_conversation', 'get_direct_conversation'].forEach(
+            (fn) => { this.addFunction(fn, dbClusterEnv, dbCluster) }
+        );
 
         /**
-         * Add Lambda Function
+         * Add resolvers
          */
-        this.getFn("create_conversation")
-            .addEnvironment("CONVERSATION_TABLE_NAME", conversationTable.tableName)
-            .addEnvironment("USER_CONVERSATION_TABLE_NAME", userConversationTable.tableName)
-            .addEnvironment("DIRECT_MESSAGE_CONVERSATION_TABLE_NAME", directMessageConversationTable.tableName);
+        // Add query resolver
+        this.createLambdaResolver("Query", "getDirectConversation", { source: "get_direct_conversation" });
+
+        // Add mutation resolver
+        this.createLambdaResolver("Mutation", "createConversation", { source: "create_conversation" });
+
+        // // Add type resolvers
+        // conversationDS.createResolver({
+        //     typeName: "UserConversation",
+        //     fieldName: "conversations",
+        //     requestMappingTemplate: AppSync.MappingTemplate.fromString(conversationUserConversationRequestStr),
+        //     responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultItem()
+        // });
+
+        // // Add query resolvers
+
+        // // Querying from userConversation table
+        // userConversationDS.createResolver({
+        //     typeName: "Query",
+        //     fieldName: "allUserConversations",
+        //     requestMappingTemplate: AppSync.MappingTemplate.fromString(allUserConversationsRequestStr),
+        //     responseMappingTemplate: AppSync.MappingTemplate.fromString(allUserConversationsResponseStr)
+        // });
+        
+
+        // directMessageDS.createResolver({
+        //     typeName: "Mutation",
+        //     fieldName: "createDirectMessage",
+        //     requestMappingTemplate: AppSync.MappingTemplate.fromString(createDirectMessageRequestStr),
+        //     responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultItem()
+        // });
+
+        
+
+        // directMessageDS.createResolver({
+        //     typeName: "Query",
+        //     fieldName: "allDirectMessagesConnection",
+        //     requestMappingTemplate: AppSync.MappingTemplate.fromString(allDirectMessagesConnectionRequestStr),
+        //     responseMappingTemplate: AppSync.MappingTemplate.fromString(allDirectMessagesConnectionResponseStr)
+        // });
+
+        // directMessageDS.createResolver({
+        //     typeName: "Query",
+        //     fieldName: "allDirectMessages",
+        //     requestMappingTemplate: AppSync.MappingTemplate.fromString(allDirectMessagesRequestStr),
+        //     responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultList()
+        // });
+
+        // directMessageDS.createResolver({
+        //     typeName: "Query",
+        //     fieldName: "allDirectMessagesFrom",
+        //     requestMappingTemplate: AppSync.MappingTemplate.fromString(allDirectMessagesFromRequestStr),
+        //     responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultList()
+        // });
 
         new CDK.CfnOutput(this, "chat-api", {
             value: this.api.graphqlUrl,
             description: "Chat api endpoint",
             exportName: "chatApiEndpoint"
         });
-
-        // new CDK.CfnOutput(this, "region", {
-        //     value: process.env.CDK_DEFAULT_REGION || '',
-        //     description: "Chat api region",
-        //     exportName: "region"
-        // });
     }
 }

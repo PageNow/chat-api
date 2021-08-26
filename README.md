@@ -13,6 +13,13 @@ The `cdk.json` file tells the CDK Toolkit how to execute your app.
  * `cdk diff`        compare deployed stack with current state
  * `cdk synth`       emits the synthesized CloudFormation template
 
+## Dev Notes
+
+* Getting user conversations and sorting it by timestamp is really hard in Dynamodb because queries cannot be sorted. Also, after you get all the conversation ids, you need to use BatchGet to fill in the conversations, but there is a limit of 100 items for batch get
+* UserPairId to check quickly whether there exists a conversation between two users
+* Use Aurora Serverless since Aurora Cluster access setup is complicated (since private access) - downside is that it is POSTGRES10
+* Assume message happens more frequently than listing chats - join latest message rather than using transaction for every message
+
 ## References
 
 * https://docs.aws.amazon.com/cdk/api/latest/docs/aws-appsync-readme.html#Object-Types
@@ -30,4 +37,9 @@ The `cdk.json` file tells the CDK Toolkit how to execute your app.
 * https://www.itonaut.com/2018/12/02/define-apigateway-lambda-and-dynamodb-using-aws-cdk/
 
 ### AppSync
+
 * https://www.youtube.com/watch?v=j1XghMd1X_I
+
+### Database Query
+
+* https://stackoverflow.com/questions/25536422/optimize-group-by-query-to-retrieve-latest-row-per-user
