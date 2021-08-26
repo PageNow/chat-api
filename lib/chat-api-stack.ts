@@ -34,12 +34,16 @@ export class ChatApiStack extends CDK.Stack {
      *  
      * @param name - name of the function
      */
-     private addFunction = (name: string, environment: {[key: string]: string}, cluster: RDS.ServerlessCluster): void => {
+    private addFunction = (
+        name: string, cluster: RDS.ServerlessCluster, environment: {[key: string]: string},
+        memorySize: number = 128
+    ): void => {
         const fn = new Lambda.Function(this, name, {
             code: Lambda.Code.fromAsset(path.resolve(__dirname, `../src/functions/${name}`)),
             runtime: Lambda.Runtime.NODEJS_12_X,
             handler: `${name}.handler`,
-            environment: environment
+            environment: environment,
+            memorySize: memorySize
         });
         fn.addLayers(this.lambdaLayer);
         this.functions[name] = fn;
@@ -51,7 +55,7 @@ export class ChatApiStack extends CDK.Stack {
      * 
      * @param name - name of the Lambda function
      */
-     private getFn(name: string): Lambda.Function {
+    private getFn(name: string): Lambda.Function {
         return this.functions[name];
     };
 
@@ -64,7 +68,7 @@ export class ChatApiStack extends CDK.Stack {
      * @param fieldName - resolvable fields
      * @param options - ResolverOptions
      */
-     private createLambdaResolver = (typeName: string, fieldName: string, options: ResolverOptions)
+    private createLambdaResolver = (typeName: string, fieldName: string, options: ResolverOptions)
         :AppSync.BaseDataSource => {
         let source = (typeof(options.source) === 'string') ?
             this.api.addLambdaDataSource(`${options.source}DS`, this.getFn(options.source)) :
@@ -154,16 +158,15 @@ export class ChatApiStack extends CDK.Stack {
         /**
          * Create Lambda functions
          */
-         this.lambdaLayer = new Lambda.LayerVersion(this, "lambdaModule", {
+        this.lambdaLayer = new Lambda.LayerVersion(this, "lambdaModule", {
             code: Lambda.Code.fromAsset(path.join(__dirname, '../src/layer')),
             compatibleRuntimes: [Lambda.Runtime.NODEJS_12_X],
             layerVersionName: "chatLayer"
         });
-        
-        ['create_conversation', 'get_direct_conversation'].forEach(
-            (fn) => { this.addFunction(fn, dbClusterEnv, dbCluster) }
-        );
 
+        this.addFunction('get_direct_conversation', dbCluster, dbClusterEnv);
+        this.addFunction('create_conversation', dbCluster, dbClusterEnv);
+        
         /**
          * Add resolvers
          */

@@ -19,6 +19,8 @@ The `cdk.json` file tells the CDK Toolkit how to execute your app.
 * UserPairId to check quickly whether there exists a conversation between two users
 * Use Aurora Serverless since Aurora Cluster access setup is complicated (since private access) - downside is that it is POSTGRES10
 * Assume message happens more frequently than listing chats - join latest message rather than using transaction for every message
+* Subscribe to messages only - because you don't need to check if it is an empty conversation => assume direct message for now (a lot easier if we don't think about group chat)
+* Testing on AWS console is easier
 
 ## References
 

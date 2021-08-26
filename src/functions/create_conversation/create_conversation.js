@@ -29,61 +29,44 @@ exports.handler = async function(event) {
             userId + ' ' + recipientId : recipientId + ' ' + userId;
     console.log(conversationId);
     console.log(userPairId);
-
-    try {
-        await db.query("BEGIN");
-
-        try {
-            await db.query(
-                "INSERT INTO conversation_table (conversation_id, title, created_by) \
-                VALUES (:conversationId, :title, :createdBy)",
-                { conversationId, title, createdBy }
-            );
-            
-            try {
-                await db.query(
-                    "INSERT INTO direct_conversation_table (user_pair_id, conversation_id) \
-                    VALUES (:userPairId, :conversationId )",
-                    { userPairId, conversationId }
-                );
-
-                try {
-                    await db.query(
-                        "INSERT INTO participant_table (user_id, conversation_id) \
-                        VALUES (:userId, :conversationId)",
-                        [
-                            [{ userId: userId, conversationId: conversationId }],
-                            [{ userId: recipientId, conversationId: conversationId }]
-                        ]
-                    );
-
-                    try {
-                        await db.query("COMMIT");
-                    } catch (err) {
-                        await db.query("ROLLBACK");
-                        console.log('Postgres error: ', err);
-                        return err;
-                    }
-                } catch (err) {
-                    await db.query("ROLLBACK");
-                    console.log('Postgres error: ', err);
-                    return err;
-                }
-            } catch (err) {
-                await db.query("ROLLBACK");
-                console.log('Postgres error: ', err);
-                return err;
-            }
-        } catch (err) {
-            await db.query("ROLLBACK");
-            console.log('Postgres error: ', err);
-            return err;
-        }
-
-    } catch (err) {
-        console.log('Postgres error: ', err);
-        return err;
-    }
+  
+    const result = await db.transaction()
+        .query(
+            "INSERT INTO conversation_table (conversation_id, title, created_by) \
+            VALUES (:conversationId, :title, :userId)",
+            [
+                { name: 'conversationId', value: conversationId, cast: 'uuid' },
+                { name: 'title', value: title },
+                { name: 'userId', value: userId }
+            ]
+        )
+        .query(
+            "INSERT INTO direct_conversation_table (user_pair_id, conversation_id) \
+            VALUES (:userPairId, :conversationId )",
+            [
+                { name: 'userPairId', value: userPairId },
+                { name: 'conversationId', value: conversationId, cast: 'uuid' }
+            ]
+        )
+        .query(
+            "INSERT INTO participant_table (user_id, conversation_id) \
+            VALUES (:userId, :conversationId)",
+            [
+                [
+                    { name: 'userId', value: userId },
+                    { name: 'conversationId', value: conversationId, cast: 'uuid' }
+                ],
+                [
+                    { name: 'userId', value: recipientId },
+                    { name: 'conversationId', value: conversationId, cast: 'uuid' }
+                ]
+            ]
+        )
+        .rollback((err, status) => {
+            console.log(status);
+            throw new Error(`Postgres Error: ${err}`)
+        }) // optional
+        .commit() // execute the queries
     
-    return { conversationId };
+    return { conversationId, title };
 }

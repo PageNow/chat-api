@@ -47,10 +47,10 @@ export const ChatSchema = (): AppSync.Schema => {
 
     const conversation = new AppSync.ObjectType("Conversation", {
         definition: {
-            conversation_id: conversationId,
+            conversationId: conversationId,
             title: AppSync.GraphqlType.string({ isRequired: true }),
-            created_by: AppSync.GraphqlType.string(),
-            created_at: AppSync.GraphqlType.string()
+            createdBy: AppSync.GraphqlType.string(),
+            createdAt: AppSync.GraphqlType.string()
         }
     });
     const conversationGqlType = typeFromObject(conversation);
