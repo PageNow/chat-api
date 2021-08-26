@@ -166,6 +166,7 @@ export class ChatApiStack extends CDK.Stack {
 
         this.addFunction('get_direct_conversation', dbCluster, dbClusterEnv);
         this.addFunction('create_conversation', dbCluster, dbClusterEnv);
+        this.addFunction('create_direct_message', dbCluster, dbClusterEnv);
         
         /**
          * Add resolvers
@@ -175,6 +176,7 @@ export class ChatApiStack extends CDK.Stack {
 
         // Add mutation resolver
         this.createLambdaResolver("Mutation", "createConversation", { source: "create_conversation" });
+        this.createLambdaResolver("Mutation", "createDirectMessage", { source: "create_direct_message" });
 
         // // Add type resolvers
         // conversationDS.createResolver({

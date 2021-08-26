@@ -23,13 +23,12 @@ export const ChatSchema = (): AppSync.Schema => {
 
     const directMessage = new AppSync.ObjectType("DirectMessage", {
         definition: {
+            messageId: messageId,
+            conversationId: conversationId,
+            createdAt: AppSync.GraphqlType.string(),
             senderId: userId,
             recipientId: userId,
             content: AppSync.GraphqlType.string({ isRequired: true }),
-            conversationid: conversationId, // partition key
-            createdAt: AppSync.GraphqlType.string(), // sort key
-            messageId: messageId,
-            // flags denoting if the message has been accepted by the server or not
             isSent: AppSync.GraphqlType.boolean(),
             isRead: AppSync.GraphqlType.boolean()
         }
@@ -37,20 +36,12 @@ export const ChatSchema = (): AppSync.Schema => {
     const directMessageGqlType = typeFromObject(directMessage);
     const directMessageArrGqlType = typeFromObject(directMessage, { isList: true });
 
-    const directMessageConnection = new AppSync.ObjectType("DirectMessageConnection", {
-        definition: {
-            messages: directMessageArrGqlType,
-            nextToken: AppSync.GraphqlType.string()
-        }
-    });
-    const directMessageConnectionGqlType = typeFromObject(directMessageConnection);
-
     const conversation = new AppSync.ObjectType("Conversation", {
         definition: {
             conversationId: conversationId,
             title: AppSync.GraphqlType.string({ isRequired: true }),
             createdBy: AppSync.GraphqlType.string(),
-            createdAt: AppSync.GraphqlType.string()
+            createdAt: AppSync.GraphqlType.string(),
         }
     });
     const conversationGqlType = typeFromObject(conversation);
@@ -76,11 +67,22 @@ export const ChatSchema = (): AppSync.Schema => {
 
     schema.addType(conversation);
     schema.addType(directMessage);
-    schema.addType(directMessageConnection);
     schema.addType(userConversation);
     schema.addType(directMessageConversation);
 
     /* Add queries to the schema */
+
+    schema.addQuery("getDirectConversation", new AppSync.Field({
+        returnType: directMessageConversationGqlType,
+        args: {
+            userPairId
+        }
+    }));
+
+    // schema.addQuery("getAllConversations", new AppSync.Field({
+    //     returnType: 
+    // }));
+
 
     schema.addQuery("allUserConversations", new AppSync.Field({
         returnType: userConversationGqlType
@@ -97,17 +99,6 @@ export const ChatSchema = (): AppSync.Schema => {
         }
     }));
 
-    // Scan through all values of type 'MessageConnection'. Use the 'after' and 'before' arguments with the
-    // 'nextToken' returned by the 'MessageConnectionConnection' result to fetch pages.
-    schema.addQuery("allDirectMessagesConnection", new AppSync.Field({
-        returnType: directMessageConnectionGqlType,
-        args: {
-            after: AppSync.GraphqlType.string(),
-            conversationId: conversationId,
-            first: AppSync.GraphqlType.int()
-        }
-    }));
-
     schema.addQuery("allDirectMessagesFrom", new AppSync.Field({
         returnType: directMessageArrGqlType,
         args: {
@@ -115,13 +106,6 @@ export const ChatSchema = (): AppSync.Schema => {
             conversationId: conversationId,
             first: AppSync.GraphqlType.int(),
             senderId: AppSync.GraphqlType.string({ isRequired: true })
-        }
-    }));
-
-    schema.addQuery("getDirectConversation", new AppSync.Field({
-        returnType: directMessageConversationGqlType,
-        args: {
-            userPairId
         }
     }));
 
@@ -140,10 +124,8 @@ export const ChatSchema = (): AppSync.Schema => {
     schema.addMutation("createDirectMessage", new AppSync.Field({
         returnType: directMessageGqlType,
         args: {
-            content: AppSync.GraphqlType.string(),
             conversationId: conversationId,
-            createdAt: AppSync.GraphqlType.string({ isRequired: true }),
-            messageId: messageId,
+            content: AppSync.GraphqlType.string({ isRequired: true }),
             recipientId: userId
         }
     }));

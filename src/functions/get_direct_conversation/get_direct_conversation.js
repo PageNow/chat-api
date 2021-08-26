@@ -15,10 +15,14 @@ exports.handler = async function(event) {
             "SELECT * FROM direct_conversation_table WHERE user_pair_id = :userPairId",
             { userPairId }
         );
+        console.log(result);
         if (result.records.length === 0) {
             return null;
         } else {
-            return result.records[0];
+            return {
+                userPairId: result.records[0].user_pair_id,
+                conversationId: result.records[0].conversation_id
+            };
         }
 
     } catch (err) {

@@ -31,7 +31,7 @@ CREATE TABLE direct_message_table (
     sender_id VARCHAR(50) NOT NULL,
     recipient_id VARCHAR(50) NOT NULL,
     content VARCHAR(1000) NOT NULL,
-    is_sent BOOLEAN DEFAULT FALSE,
+    is_sent BOOLEAN DEFAULT TRUE,
     is_read BOOLEAN DEFAULT FALSE,
 
     PRIMARY KEY (message_id),
