@@ -14,7 +14,9 @@ exports.handler = async function(event) {
 
     try {
         const result = await db.query(`
-            SELECT c.conversation_id, c.title, m.sent_at, m.content, m.sender_id, m.recipient_id, m.is_read
+            SELECT c.conversation_id AS "conversationId", c.title AS title,
+                m.sent_at AS "sentAt", m.content AS content, m.sender_id AS "senderId",
+                m.recipient_id AS "recipientId", m.is_read AS "isRead"
             FROM (
                 SELECT conversation_id, title FROM conversation_table
                 NATURAL JOIN (
@@ -30,10 +32,8 @@ exports.handler = async function(event) {
             ) m`,
             { userId }
         );
-        console.log(result);
-        return {
-            
-        }
+        console.log(result.records);
+        return result.records;
     } catch (err) {
         console.log('Postgres error: ', err);
         throw new Error(err);

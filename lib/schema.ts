@@ -56,6 +56,7 @@ export const ChatSchema = (): AppSync.Schema => {
         }
     });
     const userConversationGqlType = typeFromObject(userConversation);
+    const userConversationArrGqlType = typeFromObject(userConversation, { isList: true });
 
     // used to retrieve conversation id of dms between a pair of users
     const userPairId = AppSync.GraphqlType.id({ isRequired: true });
@@ -82,7 +83,7 @@ export const ChatSchema = (): AppSync.Schema => {
     }));
 
     schema.addQuery("getAllUserConversations", new AppSync.Field({
-        returnType: userConversationGqlType
+        returnType: userConversationArrGqlType
     }));
     
     // Scan through all values of type 'Message'. Use the 'after' and 'before' arguments with the
