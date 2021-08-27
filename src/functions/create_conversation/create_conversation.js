@@ -31,26 +31,26 @@ exports.handler = async function(event) {
     console.log(userPairId);
   
     const result = await db.transaction()
-        .query(
-            "INSERT INTO conversation_table (conversation_id, title, created_by) \
-            VALUES (:conversationId, :title, :userId)",
+        .query(`
+            INSERT INTO conversation_table (conversation_id, title, created_by)
+            VALUES (:conversationId, :title, :userId)`,
             [
                 { name: 'conversationId', value: conversationId, cast: 'uuid' },
                 { name: 'title', value: title },
                 { name: 'userId', value: userId }
             ]
         )
-        .query(
-            "INSERT INTO direct_conversation_table (user_pair_id, conversation_id) \
-            VALUES (:userPairId, :conversationId )",
+        .query(`
+            INSERT INTO direct_conversation_table (user_pair_id, conversation_id)
+            VALUES (:userPairId, :conversationId )`,
             [
                 { name: 'userPairId', value: userPairId },
                 { name: 'conversationId', value: conversationId, cast: 'uuid' }
             ]
         )
-        .query(
-            "INSERT INTO participant_table (user_id, conversation_id) \
-            VALUES (:userId, :conversationId)",
+        .query(`
+            INSERT INTO participant_table (user_id, conversation_id)
+            VALUES (:userId, :conversationId)`,
             [
                 [
                     { name: 'userId', value: userId },

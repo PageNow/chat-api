@@ -165,7 +165,8 @@ export class ChatApiStack extends CDK.Stack {
         });
 
         this.addFunction('get_direct_conversation', dbCluster, dbClusterEnv);
-        this.addFunction('get_all_user_conversations', dbCluster, dbClusterEnv);
+        this.addFunction('get_user_conversations', dbCluster, dbClusterEnv);
+        this.addFunction('get_conversation_messages', dbCluster, dbClusterEnv);
         this.addFunction('create_conversation', dbCluster, dbClusterEnv);
         this.addFunction('create_direct_message', dbCluster, dbClusterEnv);
         
@@ -174,60 +175,12 @@ export class ChatApiStack extends CDK.Stack {
          */
         // Add query resolver
         this.createLambdaResolver("Query", "getDirectConversation", { source: "get_direct_conversation" });
-        this.createLambdaResolver("Query", "getAllUserConversations", { source: "get_all_user_conversations" });
+        this.createLambdaResolver("Query", "getUserConversations", { source: "get_user_conversations" });
+        this.createLambdaResolver("Query", "getConversationMessages", { source: "get_conversation_messages" });
 
         // Add mutation resolver
         this.createLambdaResolver("Mutation", "createConversation", { source: "create_conversation" });
         this.createLambdaResolver("Mutation", "createDirectMessage", { source: "create_direct_message" });
-
-        // // Add type resolvers
-        // conversationDS.createResolver({
-        //     typeName: "UserConversation",
-        //     fieldName: "conversations",
-        //     requestMappingTemplate: AppSync.MappingTemplate.fromString(conversationUserConversationRequestStr),
-        //     responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultItem()
-        // });
-
-        // // Add query resolvers
-
-        // // Querying from userConversation table
-        // userConversationDS.createResolver({
-        //     typeName: "Query",
-        //     fieldName: "allUserConversations",
-        //     requestMappingTemplate: AppSync.MappingTemplate.fromString(allUserConversationsRequestStr),
-        //     responseMappingTemplate: AppSync.MappingTemplate.fromString(allUserConversationsResponseStr)
-        // });
-        
-
-        // directMessageDS.createResolver({
-        //     typeName: "Mutation",
-        //     fieldName: "createDirectMessage",
-        //     requestMappingTemplate: AppSync.MappingTemplate.fromString(createDirectMessageRequestStr),
-        //     responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultItem()
-        // });
-
-        
-
-        // directMessageDS.createResolver({
-        //     typeName: "Query",
-        //     fieldName: "allDirectMessagesConnection",
-        //     requestMappingTemplate: AppSync.MappingTemplate.fromString(allDirectMessagesConnectionRequestStr),
-        //     responseMappingTemplate: AppSync.MappingTemplate.fromString(allDirectMessagesConnectionResponseStr)
-        // });
-
-        // directMessageDS.createResolver({
-        //     typeName: "Query",
-        //     fieldName: "allDirectMessages",
-        //     requestMappingTemplate: AppSync.MappingTemplate.fromString(allDirectMessagesRequestStr),
-        //     responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultList()
-        // });
-
-        // directMessageDS.createResolver({
-        //     typeName: "Query",
-        //     fieldName: "allDirectMessagesFrom",
-        //     requestMappingTemplate: AppSync.MappingTemplate.fromString(allDirectMessagesFromRequestStr),
-        //     responseMappingTemplate: AppSync.MappingTemplate.dynamoDbResultList()
-        // });
 
         new CDK.CfnOutput(this, "chat-api", {
             value: this.api.graphqlUrl,

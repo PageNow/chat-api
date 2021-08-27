@@ -33,16 +33,16 @@ exports.handler = async function(event) {
 
     try {
         let result = await db.query(
-            "SELECT * FROM conversation_table WHERE conversation_id = :conversationId",
+            `SELECT * FROM conversation_table WHERE conversation_id = :conversationId`,
             [ { name: 'conversationId', value: conversationId, cast: 'uuid' } ]
         );
         if (result.records.length === 0) {
             console.log('Conversation id does not exist in conversation_table');
             throw new Error('Conversation id does not exist in conversation_table');
         }
-        result = await db.query(
-            "INSERT INTO direct_message_table (message_id, conversation_id, sender_id, recipient_id, content) \
-            VALUES (:messageId, :conversationId, :userId, :recipientId, :content)",
+        result = await db.query(`
+            INSERT INTO direct_message_table (message_id, conversation_id, sender_id, recipient_id, content)
+            VALUES (:messageId, :conversationId, :userId, :recipientId, :content)`,
             [
                 { name: 'messageId', value: messageId, cast: 'uuid' },
                 { name: 'conversationId', value: conversationId, cast: 'uuid' },
@@ -58,7 +58,7 @@ exports.handler = async function(event) {
             createdAt: utcnow
         };
     } catch (err) {
-        console.log('Postgres error: ', err);
+        console.log(err);
         throw new Error(err);
     }
 }

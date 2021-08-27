@@ -6,14 +6,14 @@ const db = require('data-api-client')({
 });
 
 exports.handler = async function(event) {
-    const decodedJwt = jwt.decode(event.request.headers.authorization, { complete: true });
-    if (decodedJwt.payload.iss !== 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_014HGnyeu') {
-        throw new Error("Authorization failed");
-    }
-
     const userPairId = event && event.arguments && event.arguments.userPairId;
     if (userPairId === undefined || userPairId === null) {
         throw new Error("Missing argument 'userPairId'");
+    }
+
+    const decodedJwt = jwt.decode(event.request.headers.authorization, { complete: true });
+    if (decodedJwt.payload.iss !== 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_014HGnyeu') {
+        throw new Error("Authorization failed");
     }
 
     try {
@@ -32,7 +32,7 @@ exports.handler = async function(event) {
         }
 
     } catch (err) {
-        console.log('Postgres error: ', err);
+        console.log(err);
         throw new Error(err);
     }
 }

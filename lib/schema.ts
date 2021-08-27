@@ -21,6 +21,7 @@ export const ChatSchema = (): AppSync.Schema => {
     const conversationId = AppSync.GraphqlType.id({ isRequired: true });
     const messageId = AppSync.GraphqlType.id( {isRequired: true });
 
+    // Direct message object
     const directMessage = new AppSync.ObjectType("DirectMessage", {
         definition: {
             messageId: messageId,
@@ -33,7 +34,9 @@ export const ChatSchema = (): AppSync.Schema => {
         }
     });
     const directMessageGqlType = typeFromObject(directMessage);
+    const directMessageArrGqlType = typeFromObject(directMessage, { isList: true });
 
+    // Conversation object
     const conversation = new AppSync.ObjectType("Conversation", {
         definition: {
             conversationId: conversationId,
@@ -44,6 +47,7 @@ export const ChatSchema = (): AppSync.Schema => {
     });
     const conversationGqlType = typeFromObject(conversation);
 
+    // Object that represents conversation users participate in
     const userConversation = new AppSync.ObjectType("UserConversation", {
         definition: {
             conversationId: conversationId,
@@ -68,22 +72,35 @@ export const ChatSchema = (): AppSync.Schema => {
     });
     const directMessageConversationGqlType = typeFromObject(directMessageConversation);
 
+    // Add objects to schema
     schema.addType(conversation);
     schema.addType(directMessage);
     schema.addType(userConversation);
     schema.addType(directMessageConversation);
 
-    /* Add queries to the schema */
-
+    /**
+     * Add queries to the schema
+     */
+    // Used to check if direct conversation exists between two users
     schema.addQuery("getDirectConversation", new AppSync.Field({
         returnType: directMessageConversationGqlType,
         args: {
-            userPairId
+            userPairId: userPairId
         }
     }));
 
-    schema.addQuery("getAllUserConversations", new AppSync.Field({
+    // Used to retrieve all conversations a user participates in
+    schema.addQuery("getUserConversations", new AppSync.Field({
         returnType: userConversationArrGqlType
+    }));
+
+    schema.addQuery("getConversationMessages", new AppSync.Field({
+        returnType: directMessageArrGqlType,
+        args: {
+            conversationId: conversationId,
+            offset: AppSync.GraphqlType.int({ isRequired: true }),
+            limit: AppSync.GraphqlType.int({ isRequired: true })
+        }
     }));
     
     // Scan through all values of type 'Message'. Use the 'after' and 'before' arguments with the
@@ -107,9 +124,10 @@ export const ChatSchema = (): AppSync.Schema => {
     //     }
     // }));
 
-    /* Add mutation to the schema */
-
-    // Create a Conversation. Use some of the cooked in template functions for UUID and DateTime.
+    /**
+     * Add mutation to the schema
+     */
+    // Create a conversation
     schema.addMutation("createConversation", new AppSync.Field({
         returnType: conversationGqlType,
         args: {

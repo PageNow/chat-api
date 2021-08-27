@@ -35,7 +35,7 @@ exports.handler = async function(event) {
         console.log(result.records);
         return result.records;
     } catch (err) {
-        console.log('Postgres error: ', err);
+        console.log(err);
         throw new Error(err);
     }
 }
