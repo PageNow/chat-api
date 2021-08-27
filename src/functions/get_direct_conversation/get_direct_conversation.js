@@ -1,3 +1,4 @@
+const jwt = require('jsonwebtoken');
 const db = require('data-api-client')({
     secretArn: process.env.DB_SECRET_ARN,
     resourceArn: process.env.DB_CLUSTER_ARN,
@@ -5,6 +6,11 @@ const db = require('data-api-client')({
 });
 
 exports.handler = async function(event) {
+    const decodedJwt = jwt.decode(event.request.headers.authorization, { complete: true });
+    if (decodedJwt.payload.iss !== 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_014HGnyeu') {
+        throw new Error("Authorization failed");
+    }
+
     const userPairId = event && event.arguments && event.arguments.userPairId;
     if (userPairId === undefined || userPairId === null) {
         throw new Error("Missing argument 'userPairId'");

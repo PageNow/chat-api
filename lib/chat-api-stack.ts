@@ -165,6 +165,7 @@ export class ChatApiStack extends CDK.Stack {
         });
 
         this.addFunction('get_direct_conversation', dbCluster, dbClusterEnv);
+        this.addFunction('get_all_user_conversations', dbCluster, dbClusterEnv);
         this.addFunction('create_conversation', dbCluster, dbClusterEnv);
         this.addFunction('create_direct_message', dbCluster, dbClusterEnv);
         
@@ -173,6 +174,7 @@ export class ChatApiStack extends CDK.Stack {
          */
         // Add query resolver
         this.createLambdaResolver("Query", "getDirectConversation", { source: "get_direct_conversation" });
+        this.createLambdaResolver("Query", "getAllUserConversations", { source: "get_all_user_conversations" });
 
         // Add mutation resolver
         this.createLambdaResolver("Mutation", "createConversation", { source: "create_conversation" });

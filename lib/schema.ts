@@ -25,16 +25,14 @@ export const ChatSchema = (): AppSync.Schema => {
         definition: {
             messageId: messageId,
             conversationId: conversationId,
-            createdAt: AppSync.GraphqlType.string(),
+            sentAt: AppSync.GraphqlType.string(),
             senderId: userId,
             recipientId: userId,
             content: AppSync.GraphqlType.string({ isRequired: true }),
-            isSent: AppSync.GraphqlType.boolean(),
             isRead: AppSync.GraphqlType.boolean()
         }
     });
     const directMessageGqlType = typeFromObject(directMessage);
-    const directMessageArrGqlType = typeFromObject(directMessage, { isList: true });
 
     const conversation = new AppSync.ObjectType("Conversation", {
         definition: {
@@ -45,12 +43,16 @@ export const ChatSchema = (): AppSync.Schema => {
         }
     });
     const conversationGqlType = typeFromObject(conversation);
-    const conversationArrGqlType = typeFromObject(conversation, { isList: true });
 
     const userConversation = new AppSync.ObjectType("UserConversation", {
         definition: {
-            userId: userId,
-            conversations: conversationArrGqlType,            
+            conversationId: conversationId,
+            title: AppSync.GraphqlType.string({ isRequired: true }),
+            sentAt: AppSync.GraphqlType.string({ isRequired: true }),
+            content: AppSync.GraphqlType.string({ isRequired: true }),
+            senderId: userId,
+            recipientId: userId,
+            isRead: AppSync.GraphqlType.boolean({ isRequired: true })
         }
     });
     const userConversationGqlType = typeFromObject(userConversation);
@@ -79,35 +81,30 @@ export const ChatSchema = (): AppSync.Schema => {
         }
     }));
 
-    // schema.addQuery("getAllConversations", new AppSync.Field({
-    //     returnType: 
-    // }));
-
-
-    schema.addQuery("allUserConversations", new AppSync.Field({
+    schema.addQuery("getAllUserConversations", new AppSync.Field({
         returnType: userConversationGqlType
     }));
     
     // Scan through all values of type 'Message'. Use the 'after' and 'before' arguments with the
     // 'nextToken' returned by the 'MessageConnection' result to fetch pages.
-    schema.addQuery("allDirectMessages", new AppSync.Field({
-        returnType: directMessageArrGqlType,
-        args: {
-            after: AppSync.GraphqlType.string(),
-            conversationId: conversationId,
-            first: AppSync.GraphqlType.int()
-        }
-    }));
+    // schema.addQuery("allDirectMessages", new AppSync.Field({
+    //     returnType: directMessageArrGqlType,
+    //     args: {
+    //         after: AppSync.GraphqlType.string(),
+    //         conversationId: conversationId,
+    //         first: AppSync.GraphqlType.int()
+    //     }
+    // }));
 
-    schema.addQuery("allDirectMessagesFrom", new AppSync.Field({
-        returnType: directMessageArrGqlType,
-        args: {
-            after: AppSync.GraphqlType.string(),
-            conversationId: conversationId,
-            first: AppSync.GraphqlType.int(),
-            senderId: AppSync.GraphqlType.string({ isRequired: true })
-        }
-    }));
+    // schema.addQuery("allDirectMessagesFrom", new AppSync.Field({
+    //     returnType: directMessageArrGqlType,
+    //     args: {
+    //         after: AppSync.GraphqlType.string(),
+    //         conversationId: conversationId,
+    //         first: AppSync.GraphqlType.int(),
+    //         senderId: AppSync.GraphqlType.string({ isRequired: true })
+    //     }
+    // }));
 
     /* Add mutation to the schema */
 
