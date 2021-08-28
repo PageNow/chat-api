@@ -25,6 +25,7 @@ CREATE TABLE direct_conversation_table (
         FOREIGN KEY (conversation_id)
         REFERENCES conversation_table (conversation_id)
 );
+CREATE INDEX conversation_id ON direct_conversation_table (conversation_id);
 
 CREATE TABLE direct_message_table (
     message_id uuid,

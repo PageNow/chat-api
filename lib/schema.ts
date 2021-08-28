@@ -66,8 +66,9 @@ export const ChatSchema = (): AppSync.Schema => {
     const userPairId = AppSync.GraphqlType.id({ isRequired: true });
     const directMessageConversation = new AppSync.ObjectType("DirectMessageConversation", {
         definition: {
-            userPairId,
-            conversationId: AppSync.GraphqlType.string()
+            userPairId: userPairId,
+            conversationId: AppSync.GraphqlType.string(),
+            title: AppSync.GraphqlType.string()
         }
     });
     const directMessageConversationGqlType = typeFromObject(directMessageConversation);
@@ -86,7 +87,8 @@ export const ChatSchema = (): AppSync.Schema => {
     schema.addQuery("getDirectConversation", new AppSync.Field({
         returnType: directMessageConversationGqlType,
         args: {
-            userPairId: userPairId
+            userPairId: AppSync.GraphqlType.id(), // can be null
+            conversationId: AppSync.GraphqlType.id(), // can be null
         },
         directives: [ AppSync.Directive.custom('@aws_cognito_user_pools') ]
     }));
