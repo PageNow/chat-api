@@ -19,7 +19,7 @@ export const ChatSchema = (): AppSync.Schema => {
 
     const userId = AppSync.GraphqlType.id({ isRequired: true });
     const conversationId = AppSync.GraphqlType.id({ isRequired: true });
-    const messageId = AppSync.GraphqlType.id( {isRequired: true });
+    const messageId = AppSync.GraphqlType.id({ isRequired: true });
 
     // Direct message object
     const directMessage = new AppSync.ObjectType("DirectMessage", {
@@ -81,17 +81,20 @@ export const ChatSchema = (): AppSync.Schema => {
     /**
      * Add queries to the schema
      */
+
     // Used to check if direct conversation exists between two users
     schema.addQuery("getDirectConversation", new AppSync.Field({
         returnType: directMessageConversationGqlType,
         args: {
             userPairId: userPairId
-        }
+        },
+        directives: [ AppSync.Directive.custom('@aws_cognito_user_pools') ]
     }));
 
     // Used to retrieve all conversations a user participates in
     schema.addQuery("getUserConversations", new AppSync.Field({
-        returnType: userConversationArrGqlType
+        returnType: userConversationArrGqlType,
+        directives: [ AppSync.Directive.custom('@aws_cognito_user_pools') ]
     }));
 
     schema.addQuery("getConversationMessages", new AppSync.Field({
@@ -100,40 +103,22 @@ export const ChatSchema = (): AppSync.Schema => {
             conversationId: conversationId,
             offset: AppSync.GraphqlType.int({ isRequired: true }),
             limit: AppSync.GraphqlType.int({ isRequired: true })
-        }
+        },
+        directives: [ AppSync.Directive.custom('@aws_cognito_user_pools') ]
     }));
-    
-    // Scan through all values of type 'Message'. Use the 'after' and 'before' arguments with the
-    // 'nextToken' returned by the 'MessageConnection' result to fetch pages.
-    // schema.addQuery("allDirectMessages", new AppSync.Field({
-    //     returnType: directMessageArrGqlType,
-    //     args: {
-    //         after: AppSync.GraphqlType.string(),
-    //         conversationId: conversationId,
-    //         first: AppSync.GraphqlType.int()
-    //     }
-    // }));
-
-    // schema.addQuery("allDirectMessagesFrom", new AppSync.Field({
-    //     returnType: directMessageArrGqlType,
-    //     args: {
-    //         after: AppSync.GraphqlType.string(),
-    //         conversationId: conversationId,
-    //         first: AppSync.GraphqlType.int(),
-    //         senderId: AppSync.GraphqlType.string({ isRequired: true })
-    //     }
-    // }));
 
     /**
      * Add mutation to the schema
      */
+
     // Create a conversation
     schema.addMutation("createConversation", new AppSync.Field({
         returnType: conversationGqlType,
         args: {
             recipientId: userId,
             title: AppSync.GraphqlType.string({ isRequired: true })
-        }
+        },
+        directives: [ AppSync.Directive.custom('@aws_cognito_user_pools') ]
     }));
 
     // Create a message in a Conversation.
@@ -143,16 +128,48 @@ export const ChatSchema = (): AppSync.Schema => {
             conversationId: conversationId,
             content: AppSync.GraphqlType.string({ isRequired: true }),
             recipientId: userId
-        }
+        },
+        directives: [ AppSync.Directive.custom('@aws_cognito_user_pools') ]
     }));
 
-    /* Add subscription to schema */
-    
-    // Subscribes to all new messages in a given Conversation.
-    schema.addSubscription("subscribeToNewMessage", new AppSync.Field({
+    // Mark the message as read in a Conversation
+    schema.addMutation("setMessageIsRead", new AppSync.Field({
+        returnType: AppSync.GraphqlType.int(), // number of rows updated
+        args: {
+            conversationId: conversationId,
+            senderId: userId, // needed for subscription
+            recipientId: userId // needed for subscription
+        },
+        directives: [ AppSync.Directive.custom('@aws_cognito_user_pools') ]
+    }));
+
+    /**
+     * Add subscription to schema
+     */
+
+    // Subscribes to all new messages to an user
+    schema.addSubscription("onCreateDirectMessage", new AppSync.Field({
         returnType: directMessageGqlType,
-        args: { recipientId: userId },
-        directives: [ AppSync.Directive.subscribe("createDirectMessage") ]
+        args: {
+            recipientId: userId
+        },
+        directives: [ 
+            AppSync.Directive.custom('@aws_cognito_user_pools'),
+            AppSync.Directive.subscribe('createDirectMessage')
+        ]
+    }));
+
+    // Subscribes to set is_read of message
+    schema.addSubscription("onSetMessageIsRead", new AppSync.Field({
+        returnType: AppSync.GraphqlType.int(),
+        args: {
+            conversationId: conversationId,
+            senderId: userId
+        },
+        directives: [ 
+            AppSync.Directive.custom('@aws_cognito_user_pools'),
+            AppSync.Directive.subscribe('setMessageIsRead')
+        ]
     }));
 
     return schema;

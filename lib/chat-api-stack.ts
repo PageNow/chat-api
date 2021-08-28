@@ -169,6 +169,8 @@ export class ChatApiStack extends CDK.Stack {
         this.addFunction('get_conversation_messages', dbCluster, dbClusterEnv);
         this.addFunction('create_conversation', dbCluster, dbClusterEnv);
         this.addFunction('create_direct_message', dbCluster, dbClusterEnv);
+        this.addFunction('set_message_is_read', dbCluster, dbClusterEnv);
+        this.addFunction('on_create_direct_message', dbCluster, dbClusterEnv);
         
         /**
          * Add resolvers
@@ -181,6 +183,10 @@ export class ChatApiStack extends CDK.Stack {
         // Add mutation resolver
         this.createLambdaResolver("Mutation", "createConversation", { source: "create_conversation" });
         this.createLambdaResolver("Mutation", "createDirectMessage", { source: "create_direct_message" });
+        this.createLambdaResolver("Mutation", "setMessageIsRead", { source: "set_message_is_read" });
+
+        // Add subscription resolver
+        this.createLambdaResolver("Subscription", "onCreateDirectMessage", { source: "on_create_direct_message" });
 
         new CDK.CfnOutput(this, "chat-api", {
             value: this.api.graphqlUrl,
