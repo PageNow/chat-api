@@ -33,12 +33,14 @@ exports.handler = async function(event) {
 
     try {
         let result = await db.query(
-            `SELECT * FROM conversation_table WHERE conversation_id = :conversationId`,
+            `SELECT * FROM participant_table WHERE conversation_id = :conversationId`,
             [ { name: 'conversationId', value: conversationId, cast: 'uuid' } ]
         );
-        if (result.records.length === 0) {
-            console.log('Conversation id does not exist in conversation_table');
-            throw new Error('Conversation id does not exist in conversation_table');
+        const participant_arr = result.records.map(x => x.user_id);
+        if (participant_arr.length !== 2 || !participant_arr.includes(userId)
+            || !participant_arr.includes(recipientId)) {
+            console.log('Users not in conversation_table of conversation_id');
+            throw new Error('Users not in conversation_table of conversation_id');
         }
         result = await db.query(`
             INSERT INTO direct_message_table (message_id, conversation_id, sender_id, recipient_id, content)
@@ -54,8 +56,8 @@ exports.handler = async function(event) {
         const utcnow = new Date().toISOString();
         return {
             messageId: messageId, conversationId: conversationId, senderId: userId,
-            recipientId: recipientId, content: content,
-            createdAt: utcnow
+            recipientId: recipientId, content: content, isRead: false,
+            sentAt: utcnow
         };
     } catch (err) {
         console.log(err);

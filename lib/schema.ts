@@ -159,6 +159,7 @@ export const ChatSchema = (): AppSync.Schema => {
         ]
     }));
 
+    // TODO: doesn't seem to be working
     // Subscribes to set is_read of message
     schema.addSubscription("onSetMessageIsRead", new AppSync.Field({
         returnType: AppSync.GraphqlType.int(),
@@ -166,7 +167,7 @@ export const ChatSchema = (): AppSync.Schema => {
             conversationId: conversationId,
             senderId: userId
         },
-        directives: [ 
+        directives: [
             AppSync.Directive.custom('@aws_cognito_user_pools'),
             AppSync.Directive.subscribe('setMessageIsRead')
         ]

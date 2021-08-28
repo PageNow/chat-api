@@ -27,10 +27,24 @@ exports.handler = async function(event) {
     const conversationId = uuidv4();
     const userPairId = userId < recipientId ?
             userId + ' ' + recipientId : recipientId + ' ' + userId;
-    console.log(conversationId);
-    console.log(userPairId);
+    
+    // check if conversation already exists
+    let result;
+    try {
+        result = await db.query(`
+            SELECT conversation_id AS "conversationId", title
+            FROM direct_conversation_table WHERE user_pair_id = :userPairId`,
+            { userPairId }
+        );
+        if (result.records.length > 0) {
+            return result.records;
+        }
+    } catch (err) {
+        console.log(err);
+        throw new Error(err);
+    }
   
-    const result = await db.transaction()
+    result = await db.transaction()
         .query(`
             INSERT INTO conversation_table (conversation_id, title, created_by)
             VALUES (:conversationId, :title, :userId)`,
