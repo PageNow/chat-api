@@ -19,6 +19,8 @@ CREATE INDEX user_idx ON participant_table (user_id);
 CREATE TABLE direct_conversation_table (
     user_pair_id VARCHAR(100) PRIMARY KEY,
     conversation_id uuid,
+    title VARCHAR(300) NOT NULL,
+
     CONSTRAINT fk_conversation
         FOREIGN KEY (conversation_id)
         REFERENCES conversation_table (conversation_id)

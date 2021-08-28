@@ -13,10 +13,18 @@ exports.handler = async function(event) {
         throw new Error("Missing argument 'recipientId'");
     }
 
-    const title = event && event.arguments && event.arguments.title;
-    if (title === undefined || title === null) {
-        throw new Error("Missing argument 'title'");
+    let senderName = event && event.arguments && event.arguments.senderName;
+    if (senderName === undefined || senderName === null) {
+        throw new Error("Missing argument 'senderName'");
     }
+    senderName = senderName.replace(';', '');
+
+
+    let recipientName = event && event.arguments && event.arguments.recipientName;
+    if (recipientName === undefined || recipientName === null) {
+        throw new Error("Missing argument 'recipientName'");
+    }
+    recipientName = recipientName.replace(';', '');
 
     const decodedJwt = jwt.decode(event.request.headers.authorization, { complete: true });
     if (decodedJwt.payload.iss !== 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_014HGnyeu') {
@@ -27,6 +35,8 @@ exports.handler = async function(event) {
     const conversationId = uuidv4();
     const userPairId = userId < recipientId ?
             userId + ' ' + recipientId : recipientId + ' ' + userId;
+    const title = userId < recipientId ?
+            senderName + ';' + recipientName : recipientName + ';' + senderName;  
     
     // check if conversation already exists
     let result;
@@ -55,11 +65,12 @@ exports.handler = async function(event) {
             ]
         )
         .query(`
-            INSERT INTO direct_conversation_table (user_pair_id, conversation_id)
-            VALUES (:userPairId, :conversationId )`,
+            INSERT INTO direct_conversation_table (user_pair_id, conversation_id, title)
+            VALUES (:userPairId, :conversationId, :title )`,
             [
                 { name: 'userPairId', value: userPairId },
-                { name: 'conversationId', value: conversationId, cast: 'uuid' }
+                { name: 'conversationId', value: conversationId, cast: 'uuid' },
+                { name: 'title', value: title }
             ]
         )
         .query(`

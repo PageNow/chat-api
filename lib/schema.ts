@@ -116,7 +116,8 @@ export const ChatSchema = (): AppSync.Schema => {
         returnType: conversationGqlType,
         args: {
             recipientId: userId,
-            title: AppSync.GraphqlType.string({ isRequired: true })
+            senderName: AppSync.GraphqlType.string({ isRequired: true }),
+            recipientName: AppSync.GraphqlType.string( { isRequired: true })
         },
         directives: [ AppSync.Directive.custom('@aws_cognito_user_pools') ]
     }));
