@@ -25,7 +25,9 @@ exports.handler = async function(event) {
     if (decodedJwt.payload.iss !== 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_014HGnyeu') {
         throw new Error("Authorization failed");
     }
-    const userId = decodedJwt.payload['cognito:username'];
+    console.log(decodedJwt);
+    const userId = decodedJwt.payload.sub;
+    console.log(userId);
 
     try {
         // make sure user is a participant in the conversation

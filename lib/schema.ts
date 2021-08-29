@@ -151,6 +151,7 @@ export const ChatSchema = (): AppSync.Schema => {
      */
 
     // Subscribes to all new messages to an user
+    // TODO: add conversationId as optional argument
     schema.addSubscription("onCreateDirectMessage", new AppSync.Field({
         returnType: directMessageGqlType,
         args: {
