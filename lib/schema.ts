@@ -96,6 +96,9 @@ export const ChatSchema = (): AppSync.Schema => {
     // Used to retrieve all conversations a user participates in
     schema.addQuery("getUserConversations", new AppSync.Field({
         returnType: userConversationArrGqlType,
+        args: {
+            isRead: AppSync.GraphqlType.boolean()
+        },
         directives: [ AppSync.Directive.custom('@aws_cognito_user_pools') ]
     }));
 
@@ -130,7 +133,8 @@ export const ChatSchema = (): AppSync.Schema => {
         args: {
             conversationId: conversationId,
             content: AppSync.GraphqlType.string({ isRequired: true }),
-            recipientId: userId
+            recipientId: userId,
+            sentAt: AppSync.GraphqlType.string({ isRequired: true })
         },
         directives: [ AppSync.Directive.custom('@aws_cognito_user_pools') ]
     }));
@@ -155,6 +159,7 @@ export const ChatSchema = (): AppSync.Schema => {
     schema.addSubscription("onCreateDirectMessage", new AppSync.Field({
         returnType: directMessageGqlType,
         args: {
+            conversationId: AppSync.GraphqlType.string(),
             recipientId: userId
         },
         directives: [ 

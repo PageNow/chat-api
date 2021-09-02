@@ -30,7 +30,7 @@ CREATE INDEX conversation_id ON direct_conversation_table (conversation_id);
 CREATE TABLE direct_message_table (
     message_id uuid,
     conversation_id uuid,
-    sent_at TIMESTAMP DEFAULT TIMEZONE('UTC', NOW()),
+    sent_at TIMESTAMP NOT NULL,
     sender_id VARCHAR(50) NOT NULL,
     recipient_id VARCHAR(50) NOT NULL,
     content VARCHAR(1000) NOT NULL,

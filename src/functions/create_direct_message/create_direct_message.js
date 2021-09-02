@@ -23,6 +23,19 @@ exports.handler = async function(event) {
         throw new Error("Missing argument 'content'");
     }
 
+    let sentAt = event && event.arguments && event.arguments.sentAt;
+    sentAt = new Date(sentAt);
+    if (sentAt === undefined || sentAt === null) {
+        throw new Error("Missing argument 'sentAt'");
+    }
+    if (isNaN(sentAt.getTime())) {
+        throw new Error("'sentAt' has invalid format");
+    }
+    const now = Date.now();
+    if ((now - sentAt.getTime()) / 1000 > 10 || (now - sentAt.getTime()) < 0) {
+        throw new Error("'sentAt' is not synced");
+    }
+
     const decodedJwt = jwt.decode(event.request.headers.authorization, { complete: true });
     if (decodedJwt.payload.iss !== 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_014HGnyeu') {
         throw new Error("Authorization failed");
@@ -43,14 +56,15 @@ exports.handler = async function(event) {
             throw new Error('Users not in conversation_table of conversation_id');
         }
         result = await db.query(`
-            INSERT INTO direct_message_table (message_id, conversation_id, sender_id, recipient_id, content)
-            VALUES (:messageId, :conversationId, :userId, :recipientId, :content)`,
+            INSERT INTO direct_message_table (message_id, conversation_id, sender_id, recipient_id, content, sent_at)
+            VALUES (:messageId, :conversationId, :userId, :recipientId, :content, :sentAt)`,
             [
                 { name: 'messageId', value: messageId, cast: 'uuid' },
                 { name: 'conversationId', value: conversationId, cast: 'uuid' },
                 { name: 'userId', value: userId },
                 { name: 'recipientId', value: recipientId },
-                { name: 'content', value: content }
+                { name: 'content', value: content },
+                { name: 'sentAt', value: sentAt }
             ]
         );
         const utcnow = new Date().toISOString();
