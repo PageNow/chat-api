@@ -1,18 +1,36 @@
-const jwt = require('jsonwebtoken');
+const { getPublicKeys, decodeVerifyJwt } = require('/opt/nodejs/decode-verify-jwt');
 const db = require('data-api-client')({
     secretArn: process.env.DB_SECRET_ARN,
     resourceArn: process.env.DB_CLUSTER_ARN,
     database: process.env.DB_NAME
 });
 
-exports.handler = async function(event) {
-    const isRead = event && event.arguments && event.arguments.isRead;
+let cacheKeys;
+const responseHeader = {
+    "Access-Control-Allow-Origin": "*",
+};
+const authErrorResponse = {
+    statusCode: 403,
+    headers: responseHeader,
+    body: 'Authentication error'
+};
 
-    const decodedJwt = jwt.decode(event.request.headers.authorization, { complete: true });
-    if (decodedJwt.payload.iss !== 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_014HGnyeu') {
-        throw new Error("Authorization failed");
+exports.handler = async function(event) {
+    let userId;
+    try {
+        if (!cacheKeys) {
+            cacheKeys = await getPublicKeys();
+        }
+        const decodedJwt = await decodeVerifyJwt(event.queryStringParameters.Authorization, cacheKeys);
+        if (!decodedJwt || !decodedJwt.isValid || decodedJwt.username === '') {
+            return authErrorResponse;
+        }
+        userId = decodedJwt.username;
+    } catch (error) {
+        console.log(error);
+        return authErrorResponse;
     }
-    const userId = decodedJwt.payload.sub;
+    const isRead = event && event.queryStringParameters && event.queryStringParameters.isRead;
 
     try {
         let result;
@@ -58,11 +76,17 @@ exports.handler = async function(event) {
                 { userId, isRead }
             );
         }
-        
-        console.log(result.records);
-        return result.records;
-    } catch (err) {
+        return {
+            statusCode: 200,
+            headers: responseHeader,
+            body: JSON.stringify(result.records)
+        };
+    } catch (error) {
         console.log(err);
-        throw new Error(err);
+        return {
+            statusCode: 500,
+            headers: responseHeader,
+            body: 'Internal server error'
+        };
     }
 }

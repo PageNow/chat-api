@@ -1,33 +1,53 @@
-const jwt = require('jsonwebtoken');
+const { getPublicKeys, decodeVerifyJwt } = require('/opt/nodejs/decode-verify-jwt');
 const db = require('data-api-client')({
     secretArn: process.env.DB_SECRET_ARN,
     resourceArn: process.env.DB_CLUSTER_ARN,
     database: process.env.DB_NAME
 });
 
+let cacheKeys;
+const responseHeader = {
+    "Access-Control-Allow-Origin": "*",
+};
+const authErrorResponse = {
+    statusCode: 403,
+    headers: responseHeader,
+    body: 'Authentication error'
+};
+
 exports.handler = async function(event) {
-    const conversationId = event && event.arguments && event.arguments.conversationId;
-    if (conversationId === undefined || conversationId === null) {
-        throw new Error("Missing argument 'conversationId'");
+    let userId;
+    try {
+        if (!cacheKeys) {
+            cacheKeys = await getPublicKeys();
+        }
+        const decodedJwt = await decodeVerifyJwt(event.queryStringParameters.Authorization, cacheKeys);
+        if (!decodedJwt || !decodedJwt.isValid || decodedJwt.username === '') {
+            return authErrorResponse;
+        }
+        userId = decodedJwt.username;
+    } catch (error) {
+        console.log(error);
+        return authErrorResponse;
     }
 
-    const offset = event && event.arguments && event.arguments.offset;
+    const conversationid = event.pathParameters.conversationId;
+    const offset = event.queryStringParameters.offset;
     if (offset === undefined || offset === null) {
-        throw new Error("Missing argument 'offset'");
+        return {
+            statusCode: 400,
+            headers: responseHeader,
+            body: "Missing parameter 'offset'"
+        };
     }
-
-    const limit = event && event.arguments && event.arguments.limit;
+    const limit = event.queryStringParameters.limit;
     if (limit === undefined || limit === null) {
-        throw new Error("Missing argument 'limit'");
+        return {
+            statusCode: 400,
+            headers: responseHeader,
+            body: "Missing parameter 'limit'"
+        };
     }
-
-    const decodedJwt = jwt.decode(event.request.headers.authorization, { complete: true });
-    if (decodedJwt.payload.iss !== 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_014HGnyeu') {
-        throw new Error("Authorization failed");
-    }
-    console.log(decodedJwt);
-    const userId = decodedJwt.payload.sub;
-    console.log(userId);
 
     try {
         // make sure user is a participant in the conversation
@@ -42,7 +62,11 @@ exports.handler = async function(event) {
         );
         if (result.records.length === 0) {
             console.log('User is not participating in the conversation');
-            throw new Error('User is not participating in the conversation');
+            return {
+                statusCode: 403,
+                headers: responseHeader,
+                body: 'Not authorized to access the conversation'
+            };
         }
 
         result = await db.query(`
@@ -60,10 +84,18 @@ exports.handler = async function(event) {
                 { name: 'offset', value: offset }
             ]
         );
-        return result.records;        
+        return {
+            statusCode: 200,
+            headers: responseHeader,
+            body: JSON.stringify(result.records)
+        };
 
-    } catch (err) {
-        console.log(err);
-        throw new Error(err);
+    } catch (error) {
+        console.log(error);
+        return {
+            statusCode: 500,
+            headers: responseHeader,
+            body: 'Internal server error'
+        }
     }
 }

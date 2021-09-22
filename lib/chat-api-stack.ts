@@ -4,6 +4,7 @@ require('dotenv').config();
 
 import * as CDK from '@aws-cdk/core';
 import * as IAM from '@aws-cdk/aws-iam';
+import * as ElasticCache from '@aws-cdk/aws-elasticache';
 import * as Cognito from '@aws-cdk/aws-cognito';
 import * as Lambda from '@aws-cdk/aws-lambda';
 import * as RDS from '@aws-cdk/aws-rds';
@@ -19,7 +20,13 @@ const COGNITO_POOL_ID = process.env.COGNITO_POOL_ID;
 
 export class ChatApiStack extends CDK.Stack {
 
+    private vpc: EC2.Vpc;
+    private privateSubnet1: EC2.Subnet;
+    private privateSubnet2: EC2.Subnet;
+    private lambdaSG: EC2.SecurityGroup;
     private lambdaLayer: Lambda.LayerVersion;
+    private redisCluster: ElasticCache.CfnReplicationGroup;
+    private redisPort: number = 6379;
     
     // Lambda functions are stored by name
     private functions: { [key: string]: Lambda.Function } = {};
@@ -32,7 +39,7 @@ export class ChatApiStack extends CDK.Stack {
      */
     private addFunction = (
         name: string, cluster: RDS.ServerlessCluster, environment: {[key: string]: string},
-        isTestFunction: boolean = false, memorySize: number = 128
+        isTestFunction: boolean = false, useRedis: boolean = false, memorySize: number = 128
     ): void => {
         const fn = new Lambda.Function(this, name, {
             code: Lambda.Code.fromAsset(path.resolve(__dirname, isTestFunction
@@ -43,6 +50,10 @@ export class ChatApiStack extends CDK.Stack {
             memorySize: memorySize
         });
         fn.addLayers(this.lambdaLayer);
+        if (useRedis) {
+            fn.addEnvironment("REDIS_HOST", process.env.REDIS_ENDPOINT_ADDRESS!);
+            fn.addEnvironment("REDIS_PORT", process.env.REDIS_ENDPOINT_PORT!);
+        }
         this.functions[name] = fn;
         cluster.grantDataApiAccess(fn);
     };
@@ -59,11 +70,39 @@ export class ChatApiStack extends CDK.Stack {
     constructor(scope: CDK.Construct, id: string, props?: CDK.StackProps) {
         super(scope, id, props);
 
+        this.vpc = EC2.Vpc.fromLookup(this, 'PresenceVPC', {
+            isDefault: false,
+            vpcId: process.env.VPC_ID
+        }) as EC2.Vpc;
+    
+        const vpc = new EC2.Vpc(this, 'ChatVPC');
+
+        this.privateSubnet1 = EC2.Subnet.fromSubnetAttributes(this, 'privateSubnet1', {
+            subnetId: process.env.PRIVATE_SUBNET1_ID!,
+            routeTableId: process.env.PRIVATE_ROUTE_TABLE_ID!,
+            availabilityZone: process.env.SUBNET1_AZ!
+        }) as EC2.Subnet;
+        this.privateSubnet2 = EC2.Subnet.fromSubnetAttributes(this, 'privateSubnet2', {
+            subnetId: process.env.PRIVATE_SUBNET2_ID!,
+            routeTableId: process.env.PRIVATE_ROUTE_TABLE_ID!,
+            availabilityZone: process.env.SUBNET2_AZ!
+        }) as EC2.Subnet;
+
+        /**
+         * Security Groups
+         */
+        const redisSG = EC2.SecurityGroup.fromLookup(
+            this, "redisSG", process.env.REDIS_SG_ID!);
+        this.lambdaSG = EC2.SecurityGroup.fromLookup(
+            this, "lambdaSG", process.env.LAMBDA_SG_ID!) as EC2.SecurityGroup;
+        redisSG.addIngressRule(
+            this.lambdaSG,
+            EC2.Port.tcp(this.redisPort)
+        );
+
         /**
          * Set up PostgreSQL
          */
-        const vpc = new EC2.Vpc(this, 'ChatVPC');
-
         const dbCluster = new RDS.ServerlessCluster(this, 'ChatCluster', {
             engine: RDS.DatabaseClusterEngine.AURORA_POSTGRESQL,
             parameterGroup: RDS.ParameterGroup.fromParameterGroupName(this, 'ParameterGroup', 'default.aurora-postgresql10'),
@@ -96,10 +135,15 @@ export class ChatApiStack extends CDK.Stack {
         });
 
         [
-            'get_direct_conversation', 'get_user_conversations', 'get_conversation_messages',
-            'create_conversation', 'create_direct_message', 'set_message_is_read',
-            'on_create_direct_message', 'connect', 'close_connection',
-            'send_message'
+            'connect', 'close_connection', 'send_message', 'create_conversation'
+        ].forEach(
+            (fn) => { this.addFunction(fn, dbCluster, dbClusterEnv, false, true) }
+        );
+
+        [
+            'get_user_conversations', 'get_conversation_messages',
+            'set_message_is_read',
+            'on_create_direct_message', 'get_user_direct_conversation'
         ].forEach(
             (fn) => { this.addFunction(fn, dbCluster, dbClusterEnv) }
         );
@@ -131,7 +175,22 @@ export class ChatApiStack extends CDK.Stack {
             },
         });
         const chatRestResource = restApi.root.addResource('chat');
-
+        const chatConversationsResource = chatRestResource.addResource('conversations');
+        // get all conversations of the request user
+        chatConversationsResource.addMethod(
+            'GET',
+            new ApiGateway.LambdaIntegration(this.getFn('get_user_conversations'), { proxy: true })
+        );
+        const chatDirectConversationResource = chatRestResource.addResource('direct-conversation/{userId}');
+        chatDirectConversationResource.addMethod(
+            'GET',
+            new ApiGateway.LambdaIntegration(this.getFn('get_user_direct_conversation'), { proxy: true })
+        );
+        const chatConversationMessagesResource = chatRestResource.addResource('conversation/{conversationId}/messages');
+        chatConversationMessagesResource.addMethod(
+            'GET',
+            new ApiGateway.LambdaIntegration(this.getFn('get_conversation_messages'), { proxy: true })
+        );
 
         /**
          * API Gateway for real-time chat websocket

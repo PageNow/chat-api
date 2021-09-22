@@ -27,11 +27,13 @@
     "@aws-cdk/aws-apigatewayv2-integrations": "^1.124.0",
     "@aws-cdk/aws-cognito": "^1.124.0",
     "@aws-cdk/aws-ec2": "^1.124.0",
+    "@aws-cdk/aws-elasticache": "^1.124.0",
     "@aws-cdk/aws-iam": "^1.124.0",
     "@aws-cdk/aws-lambda": "^1.124.0",
     "@aws-cdk/aws-rds": "^1.124.0",
     "@aws-cdk/core": "^1.124.0",
     "dotenv": "^10.0.0",
+    "redis-cli": "^2.1.0",
     "source-map-support": "^0.5.16"
   }
 }
