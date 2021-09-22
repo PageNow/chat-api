@@ -12,6 +12,9 @@
     "dependencies": {
         "data-api-client": "^1.2.0",
         "jsonwebtoken": "^8.5.1",
+        "jwk-to-pem": "^2.0.5",
+        "pg": "^8.7.1",
+        "psl": "^1.8.0",
         "uuid": "^8.3.2"
     }
 }

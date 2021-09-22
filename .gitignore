@@ -12,3 +12,5 @@ bin/*.js
 lib/*.js
 lib/resolver-mapping-str/*.js
 test/*.js
+
+.env

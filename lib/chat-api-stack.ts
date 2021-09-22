@@ -1,27 +1,23 @@
 import * as path from "path";
 
+require('dotenv').config();
+
 import * as CDK from '@aws-cdk/core';
 import * as IAM from '@aws-cdk/aws-iam';
-import * as AppSync from '@aws-cdk/aws-appsync';
 import * as Cognito from '@aws-cdk/aws-cognito';
 import * as Lambda from '@aws-cdk/aws-lambda';
 import * as RDS from '@aws-cdk/aws-rds';
 import * as EC2 from '@aws-cdk/aws-ec2';
+import * as ApiGateway from '@aws-cdk/aws-apigateway';
+import * as ApiGatewayV2 from '@aws-cdk/aws-apigatewayv2';
+import * as ApiGatewayIntegrations from '@aws-cdk/aws-apigatewayv2-integrations';
 
 import { ChatSchema } from './schema';
 
 const DB_NAME = 'ChatDB';
-
-// Interface used as parameter to create resolvers for API
-interface ResolverOptions {
-    source: string | AppSync.BaseDataSource,
-    requestMappingTemplate?: AppSync.MappingTemplate,
-    responseMappingTemplate?: AppSync.MappingTemplate
-};
+const COGNITO_POOL_ID = process.env.COGNITO_POOL_ID;
 
 export class ChatApiStack extends CDK.Stack {
-
-    readonly api: AppSync.GraphqlApi;
 
     private lambdaLayer: Lambda.LayerVersion;
     
@@ -36,10 +32,11 @@ export class ChatApiStack extends CDK.Stack {
      */
     private addFunction = (
         name: string, cluster: RDS.ServerlessCluster, environment: {[key: string]: string},
-        memorySize: number = 128
+        isTestFunction: boolean = false, memorySize: number = 128
     ): void => {
         const fn = new Lambda.Function(this, name, {
-            code: Lambda.Code.fromAsset(path.resolve(__dirname, `../src/functions/${name}`)),
+            code: Lambda.Code.fromAsset(path.resolve(__dirname, isTestFunction
+                ? `src/test_functions/${name}` : `../src/functions/${name}`)),
             runtime: Lambda.Runtime.NODEJS_12_X,
             handler: `${name}.handler`,
             environment: environment,
@@ -59,25 +56,6 @@ export class ChatApiStack extends CDK.Stack {
         return this.functions[name];
     };
 
-    /**
-     * Creates a resolver.
-     * 
-     * A resolver attaches a data source to a specific field in the schema.
-     * 
-     * @param typeName - type (e.g. Query, Mutation)
-     * @param fieldName - resolvable fields
-     * @param options - ResolverOptions
-     */
-    private createLambdaResolver = (typeName: string, fieldName: string, options: ResolverOptions)
-        :AppSync.BaseDataSource => {
-        let source = (typeof(options.source) === 'string') ?
-            this.api.addLambdaDataSource(`${options.source}DS`, this.getFn(options.source)) :
-            options.source;
-
-        source.createResolver({ typeName, fieldName, ...options });
-        return source;
-    }
-
     constructor(scope: CDK.Construct, id: string, props?: CDK.StackProps) {
         super(scope, id, props);
 
@@ -85,36 +63,6 @@ export class ChatApiStack extends CDK.Stack {
          * Set up PostgreSQL
          */
         const vpc = new EC2.Vpc(this, 'ChatVPC');
-        // const dbCluster = new RDS.DatabaseCluster(this, 'ChatCluster', {
-        //     engine: RDS.DatabaseClusterEngine.auroraPostgres({ version: RDS.AuroraPostgresEngineVersion.VER_11_6 }),
-        //     parameterGroup: RDS.ParameterGroup.fromParameterGroupName(this, 'ParameterGroup', 'default.aurora-postgresql11'),
-        //     instanceProps: {
-        //         instanceType: EC2.InstanceType.of(EC2.InstanceClass.BURSTABLE3, EC2.InstanceSize.MEDIUM),
-        //         vpcSubnets: {
-        //           subnetType: EC2.SubnetType.PRIVATE,
-        //         },
-        //         vpc,
-        //     },
-        //     defaultDatabaseName: DB_NAME
-        // });
-        // const dbClusterArn = `arn:aws:rds:${this.region}:${this.account}:cluster:${dbCluster.clusterIdentifier}`;
-
-        // const dbProxy = new RDS.DatabaseProxy(this, 'ChatClusterProxy', {
-        //     proxyTarget: RDS.ProxyTarget.fromCluster(dbCluster),
-        //     secrets: [dbCluster.secret!],
-        //     vpc,
-        // });
-        // const role = new IAM.Role(this, 'ChatClusterProxyRole', {
-        //     assumedBy: new IAM.ServicePrincipal('lambda.amazonaws.com')
-        // });
-        // dbProxy.grantConnect(role, 'admin'); // Grant the role connection access to the DB Proxy for database user 'admin'.
-        // const dbClusterArn = `arn:aws:rds:${this.region}:${this.account}:cluster:${dbCluster.clusterIdentifier}`;
-
-        // const dbClusterEnv = {
-        //     "DB_CLUSTER_ARN": dbClusterArn,
-        //     "DB_SECRET_ARN": dbCluster.secret?.secretArn || '',
-        //     "DB_NAME": DB_NAME
-        // };
 
         const dbCluster = new RDS.ServerlessCluster(this, 'ChatCluster', {
             engine: RDS.DatabaseClusterEngine.AURORA_POSTGRESQL,
@@ -136,24 +84,7 @@ export class ChatApiStack extends CDK.Stack {
         /**
          * Retrieve existing user pool
          */
-        const userPool = Cognito.UserPool.fromUserPoolId(this, 'pagenow-userpool', 'us-east-1_014HGnyeu');
-
-        this.api = new AppSync.GraphqlApi(this, "ChatAPI", {
-            name: "ChatAPI",
-            authorizationConfig: {
-                defaultAuthorization: {
-                    authorizationType: AppSync.AuthorizationType.USER_POOL,
-                    userPoolConfig: {
-                        userPool: userPool
-                    }
-                },
-                additionalAuthorizationModes: [
-                    { authorizationType: AppSync.AuthorizationType.IAM }
-                ]
-            },
-            schema: ChatSchema(),
-            logConfig: { fieldLogLevel: AppSync.FieldLogLevel.ALL }
-        });
+        const userPool = Cognito.UserPool.fromUserPoolId(this, 'pagenow-userpool', COGNITO_POOL_ID!);
 
         /**
          * Create Lambda functions
@@ -164,34 +95,92 @@ export class ChatApiStack extends CDK.Stack {
             layerVersionName: "chatLayer"
         });
 
-        this.addFunction('get_direct_conversation', dbCluster, dbClusterEnv);
-        this.addFunction('get_user_conversations', dbCluster, dbClusterEnv);
-        this.addFunction('get_conversation_messages', dbCluster, dbClusterEnv);
-        this.addFunction('create_conversation', dbCluster, dbClusterEnv);
-        this.addFunction('create_direct_message', dbCluster, dbClusterEnv);
-        this.addFunction('set_message_is_read', dbCluster, dbClusterEnv);
-        this.addFunction('on_create_direct_message', dbCluster, dbClusterEnv);
+        [
+            'get_direct_conversation', 'get_user_conversations', 'get_conversation_messages',
+            'create_conversation', 'create_direct_message', 'set_message_is_read',
+            'on_create_direct_message', 'connect', 'close_connection',
+            'send_message'
+        ].forEach(
+            (fn) => { this.addFunction(fn, dbCluster, dbClusterEnv) }
+        );
+
+        [
+            'add_users', 'add_friendship'
+        ].forEach(
+            (fn) => { this.addFunction(fn, dbCluster, dbClusterEnv, true) }
+        );
+
+        /**
+         * API Gateway for chat REST endpoint
+         */
+        const restApi = new ApiGateway.RestApi(this, 'ChatRestApi', {
+            deploy: true,
+            deployOptions: {
+                stageName: process.env.REST_API_DEPLOY_STAGE
+            },
+            defaultCorsPreflightOptions: {
+                allowHeaders: [
+                  'Content-Type',
+                  'X-Amz-Date',
+                  'Authorization',
+                  'X-Api-Key',
+                ],
+                allowMethods: ['OPTIONS', 'GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+                allowCredentials: true,
+                allowOrigins: ['http://localhost:4200'],
+            },
+        });
+        const chatRestResource = restApi.root.addResource('chat');
+
+
+        /**
+         * API Gateway for real-time chat websocket
+         */
+        const webSocketApi = new ApiGatewayV2.WebSocketApi(this, 'ChatWebsocketApi', {
+            connectRouteOptions: {
+                integration: new ApiGatewayIntegrations.LambdaWebSocketIntegration({
+                    handler: this.getFn('connect')
+                })
+            },
+            disconnectRouteOptions: {
+                integration: new ApiGatewayIntegrations.LambdaWebSocketIntegration({
+                    handler: this.getFn('close_connection')
+                })
+            }
+        });
+        webSocketApi.addRoute('send-message', {
+            integration: new ApiGatewayIntegrations.LambdaWebSocketIntegration({
+                handler: this.getFn('send_message')
+            })
+        });
+        const apiStage = new ApiGatewayV2.WebSocketStage(this, 'DevStage', {
+            webSocketApi,
+            stageName: process.env.WEBSOCKET_API_DEPLOY_STAGE!,
+            autoDeploy: true,
+        });
+        const connectionsArns = this.formatArn({
+            service: 'execute-api',
+            resourceName: `${apiStage.stageName}/POST/*`,
+            resource: webSocketApi.apiId,
+        });
+
+        [ 'send_message' ].forEach(fn => {
+            this.getFn(fn).addToRolePolicy(
+                new IAM.PolicyStatement({
+                    actions: ['execute-api:ManageConnections'],
+                    resources: [connectionsArns]
+                })
+            )
+        });
         
         /**
-         * Add resolvers
+         * CloudFormation stack output
          */
-        // Add query resolver
-        this.createLambdaResolver("Query", "getDirectConversation", { source: "get_direct_conversation" });
-        this.createLambdaResolver("Query", "getUserConversations", { source: "get_user_conversations" });
-        this.createLambdaResolver("Query", "getConversationMessages", { source: "get_conversation_messages" });
-
-        // Add mutation resolver
-        this.createLambdaResolver("Mutation", "createConversation", { source: "create_conversation" });
-        this.createLambdaResolver("Mutation", "createDirectMessage", { source: "create_direct_message" });
-        this.createLambdaResolver("Mutation", "setMessageIsRead", { source: "set_message_is_read" });
-
-        // Add subscription resolver
-        this.createLambdaResolver("Subscription", "onCreateDirectMessage", { source: "on_create_direct_message" });
-
-        new CDK.CfnOutput(this, "chat-api", {
-            value: this.api.graphqlUrl,
-            description: "Chat api endpoint",
-            exportName: "chatApiEndpoint"
+         new CDK.CfnOutput(this, 'websocketApiUrl', {
+            value: webSocketApi.apiEndpoint
+        });
+        new CDK.CfnOutput(this, 'restApiUrl', {
+            value: restApi.url
         });
     }
 }

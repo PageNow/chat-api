@@ -22,6 +22,9 @@ exports.handler = async function(event) {
     if (content === undefined || content === null) {
         throw new Error("Missing argument 'content'");
     }
+    if (content === '') {
+        throw new Error("Messge content cannot be empty");
+    }
 
     let sentAt = event && event.arguments && event.arguments.sentAt;
     sentAt = new Date(sentAt);
