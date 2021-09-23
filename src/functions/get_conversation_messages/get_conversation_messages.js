@@ -1,4 +1,9 @@
 const { getPublicKeys, decodeVerifyJwt } = require('/opt/nodejs/decode-verify-jwt');
+const {
+    authErrorResponse, unauthErrorResposne, serverErrorResponse,
+    corsResponseHeader, missingParameterResponse
+} = require('/opt/nodejs/utils');
+
 const db = require('data-api-client')({
     secretArn: process.env.DB_SECRET_ARN,
     resourceArn: process.env.DB_CLUSTER_ARN,
@@ -6,14 +11,6 @@ const db = require('data-api-client')({
 });
 
 let cacheKeys;
-const responseHeader = {
-    "Access-Control-Allow-Origin": "*",
-};
-const authErrorResponse = {
-    statusCode: 403,
-    headers: responseHeader,
-    body: 'Authentication error'
-};
 
 exports.handler = async function(event) {
     let userId;
@@ -31,22 +28,14 @@ exports.handler = async function(event) {
         return authErrorResponse;
     }
 
-    const conversationid = event.pathParameters.conversationId;
+    const conversationId = event.pathParameters.conversationId;
     const offset = event.queryStringParameters.offset;
     if (offset === undefined || offset === null) {
-        return {
-            statusCode: 400,
-            headers: responseHeader,
-            body: "Missing parameter 'offset'"
-        };
+        return missingParameterResponse('offset');
     }
     const limit = event.queryStringParameters.limit;
     if (limit === undefined || limit === null) {
-        return {
-            statusCode: 400,
-            headers: responseHeader,
-            body: "Missing parameter 'limit'"
-        };
+        return missingParameterResponse('limit');
     }
 
     try {
@@ -62,17 +51,13 @@ exports.handler = async function(event) {
         );
         if (result.records.length === 0) {
             console.log('User is not participating in the conversation');
-            return {
-                statusCode: 403,
-                headers: responseHeader,
-                body: 'Not authorized to access the conversation'
-            };
+            return unauthErrorResposne;
         }
 
         result = await db.query(`
             SELECT message_id AS "messageId", conversation_id AS "conversationId",
                 sent_at AS "sentAt", sender_id AS "senderId", recipient_id AS "recipientId",
-                is_read AS "isRead", content
+                content
             FROM direct_message_table
             WHERE conversation_id = :conversationId
             ORDER BY sent_at DESC NULLS LAST
@@ -92,10 +77,6 @@ exports.handler = async function(event) {
 
     } catch (error) {
         console.log(error);
-        return {
-            statusCode: 500,
-            headers: responseHeader,
-            body: 'Internal server error'
-        }
+        return serverErrorResponse;
     }
 }

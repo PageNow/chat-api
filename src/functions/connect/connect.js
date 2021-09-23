@@ -26,8 +26,7 @@ exports.handler = async function(event) {
     // update connectId
     try {
         const commands = redisChat.multi();
-        commands.hset("chat_user_connection", userId, event.requestContext.connectionId);
-        commands.hset("chat_connection_user", event.requestContext.connectionId, userId);
+        commands.hset("chat_connection", userId, event.requestContext.connectionId);
         const execute = promisify(commands.exec).bind(commands);
         await execute();
     } catch (error) {

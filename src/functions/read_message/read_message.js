@@ -1,12 +1,11 @@
 const { promisify } = require('util');
 const redis = require('redis');
 const { getPublicKeys, decodeVerifyJwt } = require('/opt/nodejs/decode-verify-jwt');
+const AWS = require('aws-sdk');
 const {
     authErrorResponse, unauthErrorResposne, serverErrorResponse,
     corsResponseHeader, missingBodyResponse
 } = require('/opt/nodejs/utils');
-const { v4: uuidv4 } = require('uuid');
-const AWS = require('aws-sdk');
 
 const redisChatEndpoint = process.env.REDIS_HOST || 'host.docker.internal';
 const redisChatPort = process.env.REDIS_PORT || 6379;
@@ -46,15 +45,9 @@ exports.handler = async function(event) {
         return missingBodyResponse('conversationId');
     }
 
-    if (eventData.content === undefined || eventData.content === null || eventData.content === '') {
-        return missingBodyResponse('content');
-    }
-
-    const sentAt = new Date(Date.now()).toISOString();
-    const messageId = uuidv4();
     let participantIdArr = [];
     try {
-        const result = await db.query(
+        let result = await db.query(
             `SELECT * FROM participant_table WHERE conversation_id = :conversationId`,
             [ { name: 'conversationId', value: conversationId, cast: 'uuid' } ]
         );
@@ -63,29 +56,18 @@ exports.handler = async function(event) {
             console.log('Users not in conversation_table of conversation_id');
             return unauthErrorResposne;
         }
-        await db.transaction()
-            .query(`
-                INSERT INTO message_table (message_id, conversation_id, sender_id, content, sent_at)
-                VALUES (:messageId, :conversationId, :userId, :content, :sentAt)`,
-                [
-                    { name: 'messageId', value: messageId, cast: 'uuid' },
-                    { name: 'conversationId', value: conversationId, cast: 'uuid' },
-                    { name: 'userId', value: userId },
-                    { name: 'recipientId', value: recipientId },
-                    { name: 'content', value: content },
-                    { name: 'sentAt', value: sentAt }
-                ]
-            )
-            .query(`
-                INSERT INTO message_is_read_table (message_id, user_id)
-                VALUES (:messageId, :userId)`,
-                [
-                    { name: 'messageId', value: messageId, cast: 'uuid' },
-                    { name: 'userId', value: userId }
-                ]
-            )
-            .rollback((e, status) => { console.log(e) })
-            .commit();
+
+        result = await db.query(`
+            UPDATE message_is_read_table
+            SET is_read = TRUE
+            FROM (
+                SELECT * FROM message_is_read_table
+                WHERE conversation_id = :conversationId
+            ) AS m INNER JOIN conversation_table USING conversation_id
+            WHERE is_read = FALSE
+            `
+        )
+        console.log(result.numberOfRecordsUpdated);
     } catch (error) {
         console.log(error);
         return serverErrorResponse;
@@ -103,7 +85,7 @@ exports.handler = async function(event) {
         return serverErrorResponse;
     }
     console.log(connectionDataArr);
-    
+
     // post message to all connections in the conversation
     const apigwManagementApi = new AWS.ApiGatewayManagementApi({
         apiVersion: '2018-11-29',
@@ -114,12 +96,9 @@ exports.handler = async function(event) {
             await apigwManagementApi.postToConnection({
                 ConnectionId: connectionId,
                 Data: JSON.stringify({
-                    type: 'send-message',
-                    messageId: messageId,
+                    type: 'read-message',
                     conversationId: conversationId,
-                    senderId: userId,
-                    content: content,
-                    sentAt: sentAt
+                    userId: userId
                 })
             }).promise();
         } catch (error) {

@@ -13,8 +13,6 @@ import * as ApiGateway from '@aws-cdk/aws-apigateway';
 import * as ApiGatewayV2 from '@aws-cdk/aws-apigatewayv2';
 import * as ApiGatewayIntegrations from '@aws-cdk/aws-apigatewayv2-integrations';
 
-import { ChatSchema } from './schema';
-
 const DB_NAME = 'ChatDB';
 const COGNITO_POOL_ID = process.env.COGNITO_POOL_ID;
 
@@ -135,15 +133,15 @@ export class ChatApiStack extends CDK.Stack {
         });
 
         [
-            'connect', 'close_connection', 'send_message', 'create_conversation'
+            'connect', 'close_connection', 'send_message', 'create_conversation',
+            'read_message'
         ].forEach(
             (fn) => { this.addFunction(fn, dbCluster, dbClusterEnv, false, true) }
         );
 
         [
             'get_user_conversations', 'get_conversation_messages',
-            'set_message_is_read',
-            'on_create_direct_message', 'get_user_direct_conversation'
+            'get_user_direct_conversation'
         ].forEach(
             (fn) => { this.addFunction(fn, dbCluster, dbClusterEnv) }
         );
