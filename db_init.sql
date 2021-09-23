@@ -3,7 +3,7 @@ CREATE TABLE conversation_table (
     created_by       VARCHAR(50) NOT NULL,
     created_at       TIMESTAMP DEFAULT TIMEZONE('UTC', NOW()),
     title            VARCHAR(300),
-    is_dm            BOOLEAN
+    is_group         BOOLEAN
 );
 
 CREATE TABLE participant_table (

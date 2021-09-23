@@ -1,5 +1,12 @@
-const jwt = require('jsonwebtoken');
+const { promisify } = require('util');
+const redis = require('redis');
+const { getPublicKeys, decodeVerifyJwt } = require('/opt/nodejs/decode-verify-jwt');
+const {
+    authErrorResponse, unauthErrorResposne, serverErrorResponse,
+    corsResponseHeader, missingBodyResponse
+} = require('/opt/nodejs/utils');
 const { v4: uuidv4 } = require('uuid');
+const AWS = require('aws-sdk');
 
 const db = require('data-api-client')({
     secretArn: process.env.DB_SECRET_ARN,
@@ -7,91 +14,120 @@ const db = require('data-api-client')({
     database: process.env.DB_NAME
 });
 
+let cacheKeys;
+
 exports.handler = async function(event) {
-    const recipientId = event && event.arguments && event.arguments.recipientId;
-    if (recipientId === undefined || recipientId === null) {
-        throw new Error("Missing argument 'recipientId'");
+    let userId;
+    try {
+        if (!cacheKeys) {
+            cacheKeys = await getPublicKeys();
+        }
+        const decodedJwt = await decodeVerifyJwt(eventData.jwt, cacheKeys);
+        if (!decodedJwt || !decodedJwt.isValid || decodedJwt.username === '') {
+            return authErrorResponse;
+        }
+        userId = decodedJwt.username;
+    } catch (error) {
+        console.log(error);
+        return authErrorResponse;
     }
 
-    let senderName = event && event.arguments && event.arguments.senderName;
-    if (senderName === undefined || senderName === null) {
-        throw new Error("Missing argument 'senderName'");
+    if (event.body.recipientId === undefined || event.body.recipientId === null) {
+        return missingBodyResponse('recipientId');
     }
-    senderName = senderName.replace(';', '');
 
-
-    let recipientName = event && event.arguments && event.arguments.recipientName;
-    if (recipientName === undefined || recipientName === null) {
-        throw new Error("Missing argument 'recipientName'");
+    if (event.body.title === undefined || event.body.title === null) {
+        return missingBodyResponse('title');
     }
-    recipientName = recipientName.replace(';', '');
 
-    const decodedJwt = jwt.decode(event.request.headers.authorization, { complete: true });
-    if (decodedJwt.payload.iss !== 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_014HGnyeu') {
-        throw new Error("Authorization failed");
+    if (event.body.isGroup === undefined || event.body.isGroup === null) {
+        return missingBodyResponse('isGroup');
     }
-    const userId = decodedJwt.payload.sub;
 
     const conversationId = uuidv4();
-    const userPairId = userId < recipientId ?
-            userId + ' ' + recipientId : recipientId + ' ' + userId;
-    const title = userId < recipientId ?
-            senderName + ';' + recipientName : recipientName + ';' + senderName;  
+    const isGroup = event.body.isGroup;
+    let title = event.body.title;
+    if (isGroup && title === '') {
+        return missingBodyResponse('title');
+    }
+    if (!isGroup) {
+        title = '';
+    }
     
     // check if conversation already exists
-    let result;
     try {
-        result = await db.query(`
-            SELECT conversation_id AS "conversationId", title
-            FROM direct_conversation_table WHERE user_pair_id = :userPairId`,
-            { userPairId }
+        const result = await db.query(`
+            WITH user_participant AS (
+                    SELECT * FROM participant_table
+                    WHERE user_id = :userId
+                ), target_user_participant AS (
+                    SELECT * FROM participant_table
+                    WHERE user_id = :recipientId
+                ), pair_participant AS (
+                    SELECT * 
+                    FROM user_participant AS u
+                        INNER JOIN target_user_participant AS t
+                        USING conversation_id
+                )
+            SELECT conversation_id
+            FROM conversation_table
+            WHERE conversation_id IN (SELECT conversation_id FROM pair_participant)
+            GROUP BY conversation_id
+            HAVING COUNT(conversation_id) = 2`,
+            { userId, recipientId }
         );
+        console.log(result.records);
         if (result.records.length > 0) {
-            return result.records;
+            return {
+                statusCode: 200,
+                headers: corsResponseHeader,
+                body: JSON.stringify({ conversationId: result.records[0].conversation_id })
+            }
         }
-    } catch (err) {
-        console.log(err);
-        throw new Error(err);
+    } catch (error) {
+        console.log(error);
+        return serverErrorResponse;
     }
-  
-    result = await db.transaction()
-        .query(`
-            INSERT INTO conversation_table (conversation_id, title, created_by)
-            VALUES (:conversationId, :title, :userId)`,
-            [
-                { name: 'conversationId', value: conversationId, cast: 'uuid' },
-                { name: 'title', value: title },
-                { name: 'userId', value: userId }
-            ]
-        )
-        .query(`
-            INSERT INTO direct_conversation_table (user_pair_id, conversation_id, title)
-            VALUES (:userPairId, :conversationId, :title )`,
-            [
-                { name: 'userPairId', value: userPairId },
-                { name: 'conversationId', value: conversationId, cast: 'uuid' },
-                { name: 'title', value: title }
-            ]
-        )
-        .query(`
-            INSERT INTO participant_table (user_id, conversation_id)
-            VALUES (:userId, :conversationId)`,
-            [
+
+    try {
+        await db.transaction()
+            .query(`
+                INSERT INTO conversation_table (conversation_id, title, created_by, is_group)
+                VALUES (:conversationId, :title, :userId, :isGroup)`,
                 [
+                    { name: 'conversationId', value: conversationId, cast: 'uuid' },
+                    { name: 'title', value: title },
                     { name: 'userId', value: userId },
-                    { name: 'conversationId', value: conversationId, cast: 'uuid' }
-                ],
-                [
-                    { name: 'userId', value: recipientId },
-                    { name: 'conversationId', value: conversationId, cast: 'uuid' }
+                    { name: 'isGroup', value: isGroup }
                 ]
-            ]
-        )
-        .rollback((err, status) => {
-            console.log(status);
-            throw new Error(`Postgres Error: ${err}`)
-        }) // optional
-        .commit() // execute the queries
+            )
+            .query(`
+                INSERT INTO participant_table (user_id, conversation_id)
+                VALUES (:userId, :conversationId)`,
+                [
+                    [
+                        { name: 'userId', value: userId },
+                        { name: 'conversationId', value: conversationId, cast: 'uuid' }
+                    ],
+                    [
+                        { name: 'userId', value: recipientId },
+                        { name: 'conversationId', value: conversationId, cast: 'uuid' }
+                    ]
+                ]
+            )
+            .rollback((e, status) => {
+                console.log(e);
+                return serverErrorResponse;
+            }) // optional
+            .commit() // execute the queries
+    } catch (error) {
+        console.log(error);
+        return serverErrorResponse;
+    }
     
-    return { conversationId, title };
+    return {
+        statusCode: 200,
+        headers: corsResponseHeader,
+        body: JSON.stringify({ conversationId })
+    };
 }

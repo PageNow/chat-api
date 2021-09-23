@@ -133,7 +133,7 @@ export class ChatApiStack extends CDK.Stack {
         });
 
         [
-            'connect', 'close_connection', 'send_message', 'create_conversation',
+            'connect', 'close_connection', 'send_message',
             'read_message'
         ].forEach(
             (fn) => { this.addFunction(fn, dbCluster, dbClusterEnv, false, true) }
@@ -141,7 +141,7 @@ export class ChatApiStack extends CDK.Stack {
 
         [
             'get_user_conversations', 'get_conversation_messages',
-            'get_user_direct_conversation'
+            'get_user_direct_conversation', 'create_conversation'
         ].forEach(
             (fn) => { this.addFunction(fn, dbCluster, dbClusterEnv) }
         );
@@ -173,12 +173,18 @@ export class ChatApiStack extends CDK.Stack {
             },
         });
         const chatRestResource = restApi.root.addResource('chat');
+        const chatConversationResource = chatRestResource.addResource('conversation');
+        chatConversationResource.addMethod(
+            'POST',
+            new ApiGateway.LambdaIntegration(this.getFn('create_conversation'), { proxy: true })
+        );
         const chatConversationsResource = chatRestResource.addResource('conversations');
         // get all conversations of the request user
         chatConversationsResource.addMethod(
             'GET',
             new ApiGateway.LambdaIntegration(this.getFn('get_user_conversations'), { proxy: true })
         );
+        // get 1-to-1 converation (dm) with the given user
         const chatDirectConversationResource = chatRestResource.addResource('direct-conversation/{userId}');
         chatDirectConversationResource.addMethod(
             'GET',
@@ -221,7 +227,7 @@ export class ChatApiStack extends CDK.Stack {
             resource: webSocketApi.apiId,
         });
 
-        [ 'send_message' ].forEach(fn => {
+        [ 'send_message', 'read_message' ].forEach(fn => {
             this.getFn(fn).addToRolePolicy(
                 new IAM.PolicyStatement({
                     actions: ['execute-api:ManageConnections'],
@@ -229,7 +235,7 @@ export class ChatApiStack extends CDK.Stack {
                 })
             )
         });
-        
+
         /**
          * CloudFormation stack output
          */

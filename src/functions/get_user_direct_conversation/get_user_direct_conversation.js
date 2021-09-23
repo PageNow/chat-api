@@ -1,4 +1,9 @@
 const { getPublicKeys, decodeVerifyJwt } = require('/opt/nodejs/decode-verify-jwt');
+const {
+    authErrorResponse, unauthErrorResposne, serverErrorResponse,
+    corsResponseHeader, missingBodyResponse, missingParameterResponse
+} = require('/opt/nodejs/utils');
+
 const db = require('data-api-client')({
     secretArn: process.env.DB_SECRET_ARN,
     resourceArn: process.env.DB_CLUSTER_ARN,
@@ -6,14 +11,6 @@ const db = require('data-api-client')({
 });
 
 let cacheKeys;
-const responseHeader = {
-    "Access-Control-Allow-Origin": "*",
-};
-const authErrorResponse = {
-    statusCode: 403,
-    headers: responseHeader,
-    body: 'Authentication error'
-};
 
 /**
  * Returns the id of the direct conversation (in which only the user and 
@@ -37,11 +34,7 @@ exports.handler = async function(event) {
 
     const targetUserId = event.pathParameters.userId;
     if (targetUserId === undefined || targetUserId === null) {
-        return {
-            statusCode: 400,
-            headers: responseHeader,
-            body: 'Missing path parameter'
-        };
+        return missingParameterResponse('targetUserId');
     }
 
     try {
@@ -67,15 +60,11 @@ exports.handler = async function(event) {
         );
         return {
             statusCode: 200,
-            headers: responseHeader,
+            headers: corsResponseHeader,
             body: JSON.stringify(result.records)
         };
     } catch (error) {
         console.log(error);
-        return {
-            statusCode: 500,
-            headers: responseHeader,
-            body: 'Internal server error'
-        };
+        return serverErrorResponse;
     }
 };
