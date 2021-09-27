@@ -1,5 +1,7 @@
 {
   "ChatApiStack": {
-    "chatapi": "https://vhlw6tebirh6pjgw7xijld4g3q.appsync-api.us-east-1.amazonaws.com/graphql"
+    "websocketApiUrl": "wss://7cm8v7yby1.execute-api.us-west-2.amazonaws.com",
+    "ChatRestApiEndpointCFDC441D": "https://w0twhmk1mh.execute-api.us-west-2.amazonaws.com/dev/",
+    "restApiUrl": "https://w0twhmk1mh.execute-api.us-west-2.amazonaws.com/dev/"
   }
 }

@@ -20,7 +20,7 @@ CREATE INDEX user_idx ON participant_table (user_id);
 CREATE TABLE message_table (
     message_id       uuid,
     conversation_id  uuid,
-    sent_at          TIMESTAMP NOT NULL,
+    sent_at          TIMESTAMP WITH TIME ZONE NOT NULL,
     sender_id        VARCHAR(50) NOT NULL,
     content          VARCHAR(1000) NOT NULL,
 
@@ -30,18 +30,15 @@ CREATE TABLE message_table (
         REFERENCES conversation_table (conversation_id)
 );
 CREATE INDEX message_date_sort_idx
-ON message_table (conversation_id, sender_id, content, is_read, sent_at DESC NULLS LAST);
+ON message_table (conversation_id, sender_id, content, sent_at DESC NULLS LAST);
 
 CREATE TABLE message_is_read_table (
     message_id  uuid,
     user_id     VARCHAR(50),
-    is_read     BOOLEAN DEFAULT FALSE
+    is_read     BOOLEAN DEFAULT FALSE,
 
     PRIMARY KEY (message_id, user_id),
     CONSTRAINT fk_message
         FOREIGN KEY (message_id)
         REFERENCES message_table (message_id)
-    CONSTRAINT fk_participant
-        FOREIGN KEY (user_id)
-        REFERENCES participant_table (user_id)
 );

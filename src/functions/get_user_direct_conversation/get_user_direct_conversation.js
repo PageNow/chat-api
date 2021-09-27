@@ -41,18 +41,18 @@ exports.handler = async function(event) {
         const result = await db.query(`
             WITH user_participant AS (
                     SELECT * FROM participant_table
-                    WHERE user_id = :userId
+                    WHERE user_id = '543449a2-9225-479e-bf0c-c50da6b16b7c'
                 ), target_user_participant AS (
                     SELECT * FROM participant_table
-                    WHERE user_id = :targetUserId
+                    WHERE user_id = 'f39fbebb-d4c0-4520-9eb3-2cf5fdb734e2'
                 ), pair_participant AS (
-                    SELECT * 
+                    SELECT *
                     FROM user_participant AS u
                         INNER JOIN target_user_participant AS t
-                        USING conversation_id
+                        USING (conversation_id)
                 )
             SELECT conversation_id
-            FROM conversation_table
+            FROM participant_table
             WHERE conversation_id IN (SELECT conversation_id FROM pair_participant)
             GROUP BY conversation_id
             HAVING COUNT(conversation_id) = 2`,

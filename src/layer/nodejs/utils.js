@@ -30,5 +30,10 @@ module.exports = {
             headers: this.corsResponseHeader,
             body: `Missing '${parameter}' in event parameter`
         };
+    },
+    successResponse: {
+        statusCode: 200,
+        headers: this.corsResponseHeader,
+        body: 'Success'
     }
 }

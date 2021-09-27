@@ -73,7 +73,7 @@ exports.handler = async function(event) {
                     { name: 'userId', value: userId },
                     { name: 'recipientId', value: recipientId },
                     { name: 'content', value: content },
-                    { name: 'sentAt', value: sentAt }
+                    { name: 'sentAt', value: sentAt, cast: 'timestamp' }
                 ]
             )
             .query(`
