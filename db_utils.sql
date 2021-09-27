@@ -28,9 +28,13 @@ FROM (
     ) p
 ) c
 CROSS JOIN LATERAL (
-    SELECT m.sent_at, m.content, m.sender_id, is_read
+    SELECT m.sent_at, m.content, m.sender_id, r.is_read
     FROM message_table AS m
-  		INNER JOIN message_is_read_table USING (message_id)
+  		INNER JOIN (
+            SELECT * FROM message_is_read_table
+            WHERE user_id = '543449a2-9225-479e-bf0c-c50da6b16b7c'
+        ) r
+        USING (message_id)
     WHERE m.conversation_id = c.conversation_id
     ORDER BY m.sent_at DESC NULLS LAST
     LIMIT 1
@@ -49,7 +53,11 @@ FROM (
 CROSS JOIN LATERAL (
     SELECT m.sent_at, m.content, m.sender_id, is_read
     FROM message_table AS m
-  		INNER JOIN message_is_read_table USING (message_id)
+  		INNER JOIN (
+            SELECT * FROM message_is_read_table
+            WHERE user_id = '543449a2-9225-479e-bf0c-c50da6b16b7c'
+        ) r
+        USING (message_id)
     WHERE m.conversation_id = c.conversation_id AND is_read = false
     ORDER BY m.sent_at DESC NULLS LAST
     LIMIT 1

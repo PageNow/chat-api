@@ -35,7 +35,7 @@ ON message_table (conversation_id, sender_id, content, sent_at DESC NULLS LAST);
 CREATE TABLE message_is_read_table (
     message_id  uuid,
     user_id     VARCHAR(50),
-    is_read     BOOLEAN DEFAULT FALSE,
+    is_read     BOOLEAN,
 
     PRIMARY KEY (message_id, user_id),
     CONSTRAINT fk_message

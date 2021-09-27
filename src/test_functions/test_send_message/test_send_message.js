@@ -1,7 +1,6 @@
 const { v4: uuidv4 } = require('uuid');
 const {
-    authErrorResponse, unauthErrorResposne, serverErrorResponse,
-    corsResponseHeader, missingBodyResponse
+    unauthErrorResposne, serverErrorResponse,
 } = require('/opt/nodejs/utils');
 
 const db = require('data-api-client')({
@@ -11,6 +10,19 @@ const db = require('data-api-client')({
 });
 
 exports.handler = async function(event) {
+    const conversationId = event && event.conversationId;
+    if (conversationId === undefined || conversationId === null) {
+        throw new Error("Missing 'conversationId' in event");
+    }
+    const senderId = event && event.senderId;
+    if (senderId === undefined || senderId === null) {
+        throw new Error("Missing 'senderId' in event");
+    }
+    const content = event && event.content;
+    if (content === undefined || content === null || content === '') {
+        throw new Error("Missing 'content' in event");
+    }
+
     const sentAt = new Date(Date.now()).toISOString();
     const messageId = uuidv4();
     let participantIdArr = [];
@@ -20,30 +32,34 @@ exports.handler = async function(event) {
             [ { name: 'conversationId', value: conversationId, cast: 'uuid' } ]
         );
         participantIdArr = result.records.map(x => x.user_id);
-        if (!participantIdArr.includes(userId)) {
+        if (!participantIdArr.includes(senderId)) {
             console.log('Users not in conversation_table of conversation_id');
             return unauthErrorResposne;
+        }
+        const isReadValues = [];
+        for (const participantId of participantIdArr) {
+            isReadValues.push([
+                { name: 'messageId', value: messageId, cast: 'uuid' },
+                { name: 'userId', value: participantId },
+                { name: 'isRead', value: participantId === senderId }
+            ]);
         }
         await db.transaction()
             .query(`
                 INSERT INTO message_table (message_id, conversation_id, sender_id, content, sent_at)
-                VALUES (:messageId, :conversationId, :userId, :content, :sentAt)`,
+                VALUES (:messageId, :conversationId, :senderId, :content, :sentAt)`,
                 [
                     { name: 'messageId', value: messageId, cast: 'uuid' },
                     { name: 'conversationId', value: conversationId, cast: 'uuid' },
-                    { name: 'userId', value: userId },
-                    { name: 'recipientId', value: recipientId },
+                    { name: 'senderId', value: senderId },
                     { name: 'content', value: content },
                     { name: 'sentAt', value: sentAt }
                 ]
             )
             .query(`
-                INSERT INTO message_is_read_table (message_id, user_id)
-                VALUES (:messageId, :userId)`,
-                [
-                    { name: 'messageId', value: messageId, cast: 'uuid' },
-                    { name: 'userId', value: userId }
-                ]
+                INSERT INTO message_is_read_table (message_id, user_id, is_read)
+                VALUES (:messageId, :userId, :isRead)`,
+                isReadValues
             )
             .rollback((e, status) => { console.log(e) })
             .commit();
@@ -51,4 +67,4 @@ exports.handler = async function(event) {
         console.log(error);
         return serverErrorResponse;
     }
-}
+};
