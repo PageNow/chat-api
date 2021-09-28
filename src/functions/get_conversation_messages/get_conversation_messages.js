@@ -18,7 +18,7 @@ exports.handler = async function(event) {
         if (!cacheKeys) {
             cacheKeys = await getPublicKeys();
         }
-        const decodedJwt = await decodeVerifyJwt(event.queryStringParameters.Authorization, cacheKeys);
+        const decodedJwt = await decodeVerifyJwt(event.headers.Authorization, cacheKeys);
         if (!decodedJwt || !decodedJwt.isValid || decodedJwt.username === '') {
             return authErrorResponse;
         }
@@ -56,9 +56,8 @@ exports.handler = async function(event) {
 
         result = await db.query(`
             SELECT message_id AS "messageId", conversation_id AS "conversationId",
-                sent_at AS "sentAt", sender_id AS "senderId", recipient_id AS "recipientId",
-                content
-            FROM direct_message_table
+                sent_at AS "sentAt", sender_id AS "senderId", content
+            FROM message_table
             WHERE conversation_id = :conversationId
             ORDER BY sent_at DESC NULLS LAST
             LIMIT :limit
@@ -71,7 +70,7 @@ exports.handler = async function(event) {
         );
         return {
             statusCode: 200,
-            headers: responseHeader,
+            headers: corsResponseHeader,
             body: JSON.stringify(result.records)
         };
 
@@ -79,4 +78,4 @@ exports.handler = async function(event) {
         console.log(error);
         return serverErrorResponse;
     }
-}
+};

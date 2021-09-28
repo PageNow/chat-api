@@ -1,4 +1,8 @@
 const { getPublicKeys, decodeVerifyJwt } = require('/opt/nodejs/decode-verify-jwt');
+const {
+    authErrorResponse, corsResponseHeader, invalidParameterResponse
+} = require('/opt/nodejs/utils');
+
 const db = require('data-api-client')({
     secretArn: process.env.DB_SECRET_ARN,
     resourceArn: process.env.DB_CLUSTER_ARN,
@@ -6,14 +10,6 @@ const db = require('data-api-client')({
 });
 
 let cacheKeys;
-const responseHeader = {
-    "Access-Control-Allow-Origin": "*",
-};
-const authErrorResponse = {
-    statusCode: 403,
-    headers: responseHeader,
-    body: 'Authentication error'
-};
 
 exports.handler = async function(event) {
     let userId;
@@ -21,7 +17,7 @@ exports.handler = async function(event) {
         if (!cacheKeys) {
             cacheKeys = await getPublicKeys();
         }
-        const decodedJwt = await decodeVerifyJwt(event.queryStringParameters.Authorization, cacheKeys);
+        const decodedJwt = await decodeVerifyJwt(event.headers.Authorization, cacheKeys);
         if (!decodedJwt || !decodedJwt.isValid || decodedJwt.username === '') {
             return authErrorResponse;
         }
@@ -31,7 +27,6 @@ exports.handler = async function(event) {
         return authErrorResponse;
     }
     const isRead = event && event.queryStringParameters && event.queryStringParameters.isRead;
-
     try {
         let result;
         if (isRead === undefined || isRead === null) {
@@ -56,6 +51,9 @@ exports.handler = async function(event) {
                 { userId }
             );
         } else {
+            if (isRead !== 'true' || isRead !== 'false') {
+                return invalidParameterResponse('isRead');
+            }
             result = await db.query(`
                 SELECT c.conversation_id AS "conversationId", c.title AS title, c.is_group AS "isGroup",
                     m.sent_at AS "sentAt", m.content AS content, m.sender_id AS "senderId",
@@ -74,20 +72,20 @@ exports.handler = async function(event) {
                     ORDER BY m.sent_at DESC NULLS LAST
                     LIMIT 1
                 ) m`,
-                { userId, isRead }
+                { userId: userId, isRead: isRead === 'true' }
             );
         }
         return {
             statusCode: 200,
-            headers: responseHeader,
+            headers: corsResponseHeader,
             body: JSON.stringify(result.records)
         };
     } catch (error) {
-        console.log(err);
+        console.log(error);
         return {
             statusCode: 500,
-            headers: responseHeader,
+            headers: corsResponseHeader,
             body: 'Internal server error'
         };
     }
-}
+};

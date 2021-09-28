@@ -22,7 +22,7 @@ exports.handler = async function(event) {
         if (!cacheKeys) {
             cacheKeys = await getPublicKeys();
         }
-        const decodedJwt = await decodeVerifyJwt(event.queryStringParameters.Authorization, cacheKeys);
+        const decodedJwt = await decodeVerifyJwt(event.headers.Authorization, cacheKeys);
         if (!decodedJwt || !decodedJwt.isValid || decodedJwt.username === '') {
             return authErrorResponse;
         }

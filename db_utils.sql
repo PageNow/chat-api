@@ -67,3 +67,13 @@ CROSS JOIN LATERAL (
 INSERT INTO message_table (message_id, conversation_id, sender_id, sent_at, content)
 VALUES
     ('a0875522-6828-4d13-80be-43f29d08f895', '742a36e4-66ac-4a32-9561-a672a73d4de9', '543449a2-9225-479e-bf0c-c50da6b16b7c', '2021-09-26T10:33:11Z', 'test')
+
+-- SQL query for getting messages in a conversation
+SELECT message_id AS "messageId", conversation_id AS "conversationId",
+    sent_at AS "sentAt", sender_id AS "senderId",
+    content
+FROM message_table
+WHERE conversation_id = '742a36e4-66ac-4a32-9561-a672a73d4de9'
+ORDER BY sent_at DESC NULLS LAST
+LIMIT 10
+OFFSET 0

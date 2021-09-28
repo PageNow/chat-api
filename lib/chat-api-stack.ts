@@ -247,33 +247,34 @@ export class ChatApiStack extends CDK.Stack {
             },
         });
 
-        // Endpoing definitions
-        const chatRestResource = restApi.root.addResource('chat');
+        /**
+         * REST Api Endpoint Definitions
+         */
 
         // create conversation - path: /conversation
-        const chatConversationResource = chatRestResource.addResource('conversation');
-        chatConversationResource.addMethod(
+        const conversationResource = restApi.root.addResource('conversation');
+        conversationResource.addMethod(
             'POST',
             new ApiGateway.LambdaIntegration(this.getFn('create_conversation'), { proxy: true })
         );
         // get direct (one-to-one) conversation - path: /conversation/direct/{userId}
-        const chatDirectConversationResource = chatConversationResource.addResource('direct');
-        const chatDirectConversationUserResource = chatDirectConversationResource.addResource('{userId}');
-        chatDirectConversationUserResource.addMethod(
+        const directConversationResource = conversationResource.addResource('direct');
+        const directConversationUserResource = directConversationResource.addResource('{userId}');
+        directConversationUserResource.addMethod(
             'GET',
             new ApiGateway.LambdaIntegration(this.getFn('get_user_direct_conversation'), { proxy: true })
         );
 
         // get all conversations of the request user - path: /conversations
-        const chatConversationsResource = chatRestResource.addResource('conversations');
-        chatConversationsResource.addMethod(
+        const conversationsResource = restApi.root.addResource('conversations');
+        conversationsResource.addMethod(
             'GET',
             new ApiGateway.LambdaIntegration(this.getFn('get_user_conversations'), { proxy: true })
         );
         // get conversation messages of conversationId - path: /conversations/{conversationId}/messages
-        const chatConversationsIdResource = chatConversationsResource.addResource('{conversationId}');
-        const chatConversationMessagesResource = chatConversationsIdResource.addResource('messages');
-        chatConversationMessagesResource.addMethod(
+        const conversationsIdResource = conversationsResource.addResource('{conversationId}');
+        const conversationMessagesResource = conversationsIdResource.addResource('messages');
+        conversationMessagesResource.addMethod(
             'GET',
             new ApiGateway.LambdaIntegration(this.getFn('get_conversation_messages'), { proxy: true })
         );

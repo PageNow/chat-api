@@ -66,13 +66,13 @@ exports.handler = async function(event) {
             return unauthErrorResposne;
         }
         const isReadValues = [];
-        for (const participantId of participantIdArr) {
+        participantIdArr.forEach(participantId => {
             isReadValues.push([
                 { name: 'messageId', value: messageId, cast: 'uuid' },
                 { name: 'userId', value: participantId },
                 { name: 'isRead', value: userId === participantId }
             ]);
-        }
+        });
         await db.transaction()
             .query(`
                 INSERT INTO message_table (message_id, conversation_id, sender_id, content, sent_at)
