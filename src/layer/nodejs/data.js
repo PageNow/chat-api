@@ -68,7 +68,7 @@ const message1_1 = {
     conversation_id: conversation1.conversation_id,
     sent_at: "2021-09-26T10:33:11Z",
     sender_id: user1.user_id,
-    content: "Message 1 sent by user1"
+    content: "Conversation 1 - Message 1 sent by user1"
 };
 
 const message1_2 = {
@@ -76,7 +76,7 @@ const message1_2 = {
     conversation_id: conversation1.conversation_id,
     sent_at: "2021-09-26T10:40:11Z",
     sender_id: user2.user_id,
-    content: "Message 2 sent by user2"
+    content: "Conversation 1 - Message 2 sent by user2"
 };
 
 const message1_3 = {
@@ -84,15 +84,16 @@ const message1_3 = {
     conversation_id: conversation1.conversation_id,
     sent_at: "2021-09-26T10:41:11Z",
     sender_id: user2.user_id,
-    content: "Message 3 sent by user2"
+    content: "Conversation 1 - Message 3 sent by user2"
 };
 
+// message2_n - messages in conversation2
 const message2_1 = {
     message_id: "d19a3c23-0fd2-4d99-a469-5e21c879cce9",
     conversation_id: conversation2.conversation_id,
     sent_at: "2021-09-26T10:34:11Z",
     sender_id: user3.user_id,
-    content: "Message 1 sent by user3"
+    content: "Conversation 2 - Message 1 sent by user3"
 };
 
 const message2_2 = {
@@ -100,7 +101,7 @@ const message2_2 = {
     conversation_id: conversation2.conversation_id,
     sent_at: "2021-09-26T10:35:11Z",
     sender_id: user2.user_id,
-    content: "Message 2 sent by user2"
+    content: "Conversation 2 - Message 2 sent by user2"
 };
 
 const message2_3 = {
@@ -108,7 +109,7 @@ const message2_3 = {
     conversation_id: conversation2.conversation_id,
     sent_at: "2021-09-27T10:35:11Z",
     sender_id: user1.user_id,
-    content: "Message 3 sent by user1"
+    content: "Conversation 2 - Message 3 sent by user1"
 };
 
 module.exports = {

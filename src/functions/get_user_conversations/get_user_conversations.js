@@ -31,47 +31,66 @@ exports.handler = async function(event) {
         let result;
         if (isRead === undefined || isRead === null) {
             result = await db.query(`
-                SELECT c.conversation_id AS "conversationId", c.title AS title, c.is_group AS "isGroup",
-                    m.sent_at AS "sentAt", m.content AS content, m.sender_id AS "senderId",
-                    m.is_read AS "isRead"
+                SELECT DISTINCT ON (c.conversation_id, m.sent_at) c.conversation_id AS "conversationId",
+                    c.title AS title, c.is_group AS "isGroup",
+                    m.sent_at AS "sentAt", m.content AS latestContent, m.sender_id AS "senderId",
+                    r.is_read AS "isRead", c.participant_id AS "participantId"
                 FROM (
-                    SELECT conversation_id, title, is_group FROM conversation_table
-                    NATURAL JOIN (
-                        SELECT * FROM participant_table WHERE user_id = '543449a2-9225-479e-bf0c-c50da6b16b7c'
-                    ) p
+                    SELECT conversation_id, title, is_group, p2.user_id AS "participant_id"
+                    FROM conversation_table
+                    INNER JOIN (
+                        SELECT * FROM participant_table WHERE user_id = :userId
+                    ) p USING (conversation_id)
+                    INNER JOIN (
+                        SELECT * FROM participant_table WHERE user_id != :userId
+                    ) p2 USING (conversation_id)
                 ) c
                 CROSS JOIN LATERAL (
-                    SELECT m.sent_at, m.content, m.sender_id, is_read
+                    SELECT m.message_id, m.sent_at, m.content, m.sender_id
                     FROM message_table AS m
-                        INNER JOIN message_is_read_table USING (message_id)
                     WHERE m.conversation_id = c.conversation_id
                     ORDER BY m.sent_at DESC NULLS LAST
                     LIMIT 1
-                ) m`,
+                ) m
+                INNER JOIN (
+                    SELECT * FROM message_is_read_table
+                    WHERE user_id = :userId
+                ) r USING (message_id)
+                ORDER BY m.sent_at DESC`,
                 { userId }
             );
         } else {
-            if (isRead !== 'true' || isRead !== 'false') {
+            if (isRead !== 'true' && isRead !== 'false') {
                 return invalidParameterResponse('isRead');
             }
             result = await db.query(`
-                SELECT c.conversation_id AS "conversationId", c.title AS title, c.is_group AS "isGroup",
-                    m.sent_at AS "sentAt", m.content AS content, m.sender_id AS "senderId",
-                    m.is_read AS "isRead"
+                SELECT DISTINCT ON (c.conversation_id, m.sent_at) c.conversation_id AS "conversationId",
+                    c.title AS title, c.is_group AS "isGroup",
+                    m.sent_at AS "sentAt", m.content AS latestContent, m.sender_id AS "senderId",
+                    r.is_read AS "isRead", c.participant_id AS "participantId"
                 FROM (
-                    SELECT conversation_id, title, is_group FROM conversation_table
-                    NATURAL JOIN (
-                        SELECT * FROM participant_table WHERE user_id = '543449a2-9225-479e-bf0c-c50da6b16b7c'
-                    ) p
+                    SELECT conversation_id, title, is_group, p2.user_id AS "participant_id"
+                    FROM conversation_table
+                    INNER JOIN (
+                        SELECT * FROM participant_table WHERE user_id = :userId
+                    ) p USING (conversation_id)
+                    INNER JOIN (
+                        SELECT * FROM participant_table WHERE user_id != :userId
+                    ) p2 USING (conversation_id)
                 ) c
                 CROSS JOIN LATERAL (
-                    SELECT m.sent_at, m.content, m.sender_id, is_read
+                    SELECT m.message_id, m.sent_at, m.content, m.sender_id
                     FROM message_table AS m
-                        INNER JOIN message_is_read_table USING (message_id)
-                    WHERE m.conversation_id = c.conversation_id AND is_read = :isRead
+                    WHERE m.conversation_id = c.conversation_id
                     ORDER BY m.sent_at DESC NULLS LAST
                     LIMIT 1
-                ) m`,
+                ) m
+                INNER JOIN (
+                    SELECT * FROM message_is_read_table
+                    WHERE user_id = :userId
+                ) r USING (message_id)
+                WHERE r.is_read = :isRead
+                ORDER BY m.sent_at DESC`,
                 { userId: userId, isRead: isRead === 'true' }
             );
         }

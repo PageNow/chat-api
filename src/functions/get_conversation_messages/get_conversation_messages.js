@@ -1,7 +1,7 @@
 const { getPublicKeys, decodeVerifyJwt } = require('/opt/nodejs/decode-verify-jwt');
 const {
     authErrorResponse, unauthErrorResposne, serverErrorResponse,
-    corsResponseHeader, missingParameterResponse
+    corsResponseHeader, missingParameterResponse, invalidParameterResponse
 } = require('/opt/nodejs/utils');
 
 const db = require('data-api-client')({
@@ -29,14 +29,31 @@ exports.handler = async function(event) {
     }
 
     const conversationId = event.pathParameters.conversationId;
-    const offset = event.queryStringParameters.offset;
+    let offset = event.queryStringParameters.offset;
     if (offset === undefined || offset === null) {
         return missingParameterResponse('offset');
     }
-    const limit = event.queryStringParameters.limit;
+    try {
+        offset = parseInt(offset, 10);
+    } catch (error) {
+        console.log(error);
+        return invalidParameterResponse('offset');
+    }
+    let limit = event.queryStringParameters.limit;
     if (limit === undefined || limit === null) {
         return missingParameterResponse('limit');
     }
+    try {
+        limit = parseInt(limit, 10);
+    } catch (error) {
+        console.log(error);
+        return invalidParameterResponse('offset');
+    }
+    let isReverse = false;
+    if (event.queryStringParameters.order === 'asc') { // old to new
+        isReverse = true;
+    }
+    
 
     try {
         // make sure user is a participant in the conversation
@@ -68,10 +85,14 @@ exports.handler = async function(event) {
                 { name: 'offset', value: offset }
             ]
         );
+        let records = result.records;
+        if (isReverse) {
+            records.reverse();
+        }
         return {
             statusCode: 200,
             headers: corsResponseHeader,
-            body: JSON.stringify(result.records)
+            body: JSON.stringify(records)
         };
 
     } catch (error) {

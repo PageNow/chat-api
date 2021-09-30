@@ -18,50 +18,61 @@ GROUP BY conversation_id
 HAVING COUNT(conversation_id) = 2
 
 -- SQL query for get_user_conversations for user1 where isRead = null
-SELECT c.conversation_id AS "conversationId", c.title AS title, c.is_group AS "isGroup",
-    m.sent_at AS "sentAt", m.content AS content, m.sender_id AS "senderId",
-    m.is_read AS "isRead"
+SELECT DISTINCT ON (c.conversation_id, m.sent_at) c.conversation_id AS "conversationId",
+    c.title AS title, c.is_group AS "isGroup",
+    m.sent_at AS "sentAt", m.content AS latestContent, m.sender_id AS "senderId",
+    r.is_read AS "isRead", c.participant_id AS "participantId"
 FROM (
-    SELECT conversation_id, title, is_group FROM conversation_table
-    NATURAL JOIN (
+    SELECT conversation_id, title, is_group, p2.user_id AS "participant_id"
+    FROM conversation_table
+    INNER JOIN (
         SELECT * FROM participant_table WHERE user_id = '543449a2-9225-479e-bf0c-c50da6b16b7c'
-    ) p
+    ) p USING (conversation_id)
+    INNER JOIN (
+        SELECT * FROM participant_table WHERE user_id != '543449a2-9225-479e-bf0c-c50da6b16b7c'
+    ) p2 USING (conversation_id)
 ) c
 CROSS JOIN LATERAL (
-    SELECT m.sent_at, m.content, m.sender_id, r.is_read
+    SELECT m.message_id, m.sent_at, m.content, m.sender_id
     FROM message_table AS m
-  		INNER JOIN (
-            SELECT * FROM message_is_read_table
-            WHERE user_id = '543449a2-9225-479e-bf0c-c50da6b16b7c'
-        ) r
-        USING (message_id)
     WHERE m.conversation_id = c.conversation_id
     ORDER BY m.sent_at DESC NULLS LAST
     LIMIT 1
 ) m
+INNER JOIN (
+    SELECT * FROM message_is_read_table
+    WHERE user_id = '543449a2-9225-479e-bf0c-c50da6b16b7c'
+) r USING (message_id)
+ORDER BY m.sent_at DESC
 
 -- SQL query for get_user_conversations for user1 where isRead = false
-SELECT c.conversation_id AS "conversationId", c.title AS title, c.is_group AS "isGroup",
-    m.sent_at AS "sentAt", m.content AS content, m.sender_id AS "senderId",
-    m.is_read AS "isRead"
+SELECT DISTINCT ON (c.conversation_id, m.sent_at) c.conversation_id AS "conversationId",
+    c.title AS title, c.is_group AS "isGroup",
+    m.sent_at AS "sentAt", m.content AS latestContent, m.sender_id AS "senderId",
+    r.is_read AS "isRead", c.participant_id AS "participantId"
 FROM (
-    SELECT conversation_id, title, is_group FROM conversation_table
-    NATURAL JOIN (
+    SELECT conversation_id, title, is_group, p2.user_id AS "participant_id"
+    FROM conversation_table
+    INNER JOIN (
         SELECT * FROM participant_table WHERE user_id = '543449a2-9225-479e-bf0c-c50da6b16b7c'
-    ) p
+    ) p USING (conversation_id)
+    INNER JOIN (
+        SELECT * FROM participant_table WHERE user_id != '543449a2-9225-479e-bf0c-c50da6b16b7c'
+    ) p2 USING (conversation_id)
 ) c
 CROSS JOIN LATERAL (
-    SELECT m.sent_at, m.content, m.sender_id, is_read
+    SELECT m.message_id, m.sent_at, m.content, m.sender_id
     FROM message_table AS m
-  		INNER JOIN (
-            SELECT * FROM message_is_read_table
-            WHERE user_id = '543449a2-9225-479e-bf0c-c50da6b16b7c'
-        ) r
-        USING (message_id)
-    WHERE m.conversation_id = c.conversation_id AND is_read = false
+    WHERE m.conversation_id = c.conversation_id
     ORDER BY m.sent_at DESC NULLS LAST
     LIMIT 1
 ) m
+INNER JOIN (
+    SELECT * FROM message_is_read_table
+    WHERE user_id = '543449a2-9225-479e-bf0c-c50da6b16b7c'
+) r USING (message_id)
+WHERE r.is_read = false
+ORDER BY m.sent_at DESC
 
 -- SQL query for adding message
 INSERT INTO message_table (message_id, conversation_id, sender_id, sent_at, content)

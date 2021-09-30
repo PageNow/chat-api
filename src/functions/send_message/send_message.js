@@ -42,13 +42,18 @@ exports.handler = async function(event) {
         console.log(error);
         return authErrorResponse;
     }
+    console.log(userId);
 
+    if (eventData.tempMessageId === undefined || eventData.tempMessageId === null) {
+        return missingBodyResponse('tempMessageId');
+    }
     if (eventData.conversationId === undefined || eventData.conversationId === null) {
         return missingBodyResponse('conversationId');
     }
     if (eventData.content === undefined || eventData.content === null || eventData.content === '') {
         return missingBodyResponse('content');
     }
+    const tempMessageId = eventData.tempMessageId;
     const conversationId = eventData.conversationId;
     const content = eventData.content;
 
@@ -120,8 +125,9 @@ exports.handler = async function(event) {
             await apigwManagementApi.postToConnection({
                 ConnectionId: connectionId,
                 Data: JSON.stringify({
-                    type: 'send-message',
+                    type: 'new-message',
                     messageId: messageId,
+                    tempMessageId: tempMessageId,
                     conversationId: conversationId,
                     senderId: userId,
                     content: content,
