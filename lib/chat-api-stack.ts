@@ -205,6 +205,7 @@ export class ChatApiStack extends CDK.Stack {
             layerVersionName: "chatLayer"
         });
 
+        // not test function, use redis, not use user db
         [
             'connect', 'close_connection', 'send_message',
             'read_message'
@@ -212,6 +213,7 @@ export class ChatApiStack extends CDK.Stack {
             (fn) => { this.addFunction(fn, false, true) }
         );
 
+        // not test function, not use redis, not use user db
         [
             'get_user_conversations', 'get_conversation_messages',
             'get_user_direct_conversation', 'create_conversation'
@@ -219,11 +221,18 @@ export class ChatApiStack extends CDK.Stack {
             (fn) => { this.addFunction(fn) }
         );
 
+        // test function, not use redis, use user db
         [
             'add_users', 'add_friendship', 'add_conversations', 'add_messages',
-            'test_send_message'
         ].forEach(
             (fn) => { this.addFunction(fn, true, false, true) }
+        );
+
+        // test function, use redis, use user db
+        [
+            'test_send_message'
+        ].forEach(
+            (fn) => { this.addFunction(fn, true, true, true) }
         );
 
         /**
@@ -310,7 +319,7 @@ export class ChatApiStack extends CDK.Stack {
             resource: webSocketApi.apiId,
         });
 
-        [ 'send_message', 'read_message' ].forEach(fn => {
+        [ 'send_message', 'read_message', 'test_send_message' ].forEach(fn => {
             this.getFn(fn).addToRolePolicy(
                 new IAM.PolicyStatement({
                     actions: ['execute-api:ManageConnections'],

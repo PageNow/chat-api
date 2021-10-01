@@ -33,7 +33,7 @@ exports.handler = async function(event) {
             result = await db.query(`
                 SELECT DISTINCT ON (c.conversation_id, m.sent_at) c.conversation_id AS "conversationId",
                     c.title AS title, c.is_group AS "isGroup",
-                    m.sent_at AS "sentAt", m.content AS latestContent, m.sender_id AS "senderId",
+                    m.sent_at AS "sentAt", m.content AS "latestContent", m.sender_id AS "senderId",
                     r.is_read AS "isRead", c.participant_id AS "participantId"
                 FROM (
                     SELECT conversation_id, title, is_group, p2.user_id AS "participant_id"
@@ -66,7 +66,7 @@ exports.handler = async function(event) {
             result = await db.query(`
                 SELECT DISTINCT ON (c.conversation_id, m.sent_at) c.conversation_id AS "conversationId",
                     c.title AS title, c.is_group AS "isGroup",
-                    m.sent_at AS "sentAt", m.content AS latestContent, m.sender_id AS "senderId",
+                    m.sent_at AS "sentAt", m.content AS "latestContent", m.sender_id AS "senderId",
                     r.is_read AS "isRead", c.participant_id AS "participantId"
                 FROM (
                     SELECT conversation_id, title, is_group, p2.user_id AS "participant_id"

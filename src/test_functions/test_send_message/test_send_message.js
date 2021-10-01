@@ -1,7 +1,16 @@
+const { promisify } = require('util');
 const { v4: uuidv4 } = require('uuid');
 const {
-    unauthErrorResposne, serverErrorResponse,
+    unauthErrorResposne, serverErrorResponse, corsResponseHeader
 } = require('/opt/nodejs/utils');
+const redis = require('redis');
+const AWS = require('aws-sdk');
+
+const redisChatEndpoint = process.env.REDIS_HOST || 'host.docker.internal';
+const redisChatPort = process.env.REDIS_PORT || 6379;
+const redisChat = redis.createClient(redisChatPort, redisChatEndpoint);
+const hmget = promisify(redisChat.hmget).bind(redisChat);
+const hdel = promisify(redisChat.hdel).bind(redisChat);
 
 const db = require('data-api-client')({
     secretArn: process.env.DB_SECRET_ARN,
@@ -21,6 +30,10 @@ exports.handler = async function(event) {
     const content = event && event.content;
     if (content === undefined || content === null || content === '') {
         throw new Error("Missing 'content' in event");
+    }
+    const domainName = event && event.domainName;
+    if (domainName === undefined || domainName === null) {
+        throw new Error("Missing 'domainName' in event");
     }
 
     const sentAt = new Date(Date.now()).toISOString();
@@ -53,7 +66,7 @@ exports.handler = async function(event) {
                     { name: 'conversationId', value: conversationId, cast: 'uuid' },
                     { name: 'senderId', value: senderId },
                     { name: 'content', value: content },
-                    { name: 'sentAt', value: sentAt }
+                    { name: 'sentAt', value: sentAt, cast: 'timestamp' }
                 ]
             )
             .query(`
@@ -67,4 +80,60 @@ exports.handler = async function(event) {
         console.log(error);
         return serverErrorResponse;
     }
+    
+    // get connectionId for all the participants
+    let connectionDataArr = [];
+    try {
+        const connectionIdArr = await hmget("chat_connection", participantIdArr);
+        connectionDataArr = connectionIdArr.map((x, i) => {
+            return { participantId: participantIdArr[i], connectionId: x };
+        }).filter(x => x.connectionId);
+    } catch (error) {
+        console.log(error);
+        return serverErrorResponse;
+    }
+    console.log(connectionDataArr);
+
+    // post message to all connections in the conversation
+    const apigwManagementApi = new AWS.ApiGatewayManagementApi({
+        apiVersion: '2018-11-29',
+        endpoint: domainName + '/' + 'dev'
+    });
+    const postCalls = connectionDataArr.map(async ({ participantId, connectionId }) => {
+        try {
+            await apigwManagementApi.postToConnection({
+                ConnectionId: connectionId,
+                Data: JSON.stringify({
+                    type: 'new-message',
+                    messageId: messageId,
+                    tempMessageId: '',
+                    conversationId: conversationId,
+                    senderId: senderId,
+                    content: content,
+                    sentAt: sentAt
+                })
+            }).promise();
+        } catch (error) {
+            console.log(error);
+            if (error.statusCode === 410) {
+                console.log(`Found stale connection, deleting ${connectionId}`);
+                await hdel("chat_connection", participantId).promise();
+            } else {
+                throw error;
+            }
+        }
+    });
+
+    try {
+        await Promise.all(postCalls);
+    } catch (error) {
+        console.log(error);
+        return serverErrorResponse;
+    }
+
+    return {
+        statusCode: 200,
+        headers: corsResponseHeader,
+        body: 'Data sent'
+    };
 };
