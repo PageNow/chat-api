@@ -208,15 +208,15 @@ export class ChatApiStack extends CDK.Stack {
         // not test function, use redis, not use user db
         [
             'connect', 'close_connection', 'send_message',
-            'read_message'
+            'read_messages'
         ].forEach(
             (fn) => { this.addFunction(fn, false, true) }
         );
 
         // not test function, not use redis, not use user db
         [
-            'get_user_conversations', 'get_conversation_messages',
-            'get_user_direct_conversation', 'create_conversation'
+            'get_user_conversations', 'get_conversation_messages', 'get_conversation_participants',
+            'get_user_direct_conversation', 'create_conversation',
         ].forEach(
             (fn) => { this.addFunction(fn) }
         );
@@ -287,6 +287,12 @@ export class ChatApiStack extends CDK.Stack {
             'GET',
             new ApiGateway.LambdaIntegration(this.getFn('get_conversation_messages'), { proxy: true })
         );
+        // get conversation participants of conversationId - path: /conversations/{conversationId}/participants
+        const conversationParticipantsResource = conversationsIdResource.addResource('participants');
+        conversationParticipantsResource.addMethod(
+            'GET',
+            new ApiGateway.LambdaIntegration(this.getFn('get_conversation_participants'), { proxy: true })
+        );
 
         /**
          * API Gateway for real-time chat websocket
@@ -308,6 +314,11 @@ export class ChatApiStack extends CDK.Stack {
                 handler: this.getFn('send_message')
             })
         });
+        webSocketApi.addRoute('read-messages', {
+            integration: new ApiGatewayIntegrations.LambdaWebSocketIntegration({
+                handler: this.getFn('read_messages')
+            })
+        });
         const apiStage = new ApiGatewayV2.WebSocketStage(this, 'DevStage', {
             webSocketApi,
             stageName: process.env.WEBSOCKET_API_DEPLOY_STAGE!,
@@ -319,7 +330,7 @@ export class ChatApiStack extends CDK.Stack {
             resource: webSocketApi.apiId,
         });
 
-        [ 'send_message', 'read_message', 'test_send_message' ].forEach(fn => {
+        [ 'send_message', 'read_messages', 'test_send_message' ].forEach(fn => {
             this.getFn(fn).addToRolePolicy(
                 new IAM.PolicyStatement({
                     actions: ['execute-api:ManageConnections'],

@@ -22,6 +22,7 @@ The `cdk.json` file tells the CDK Toolkit how to execute your app.
 * Subscribe to messages only - because you don't need to check if it is an empty conversation => assume direct message for now (a lot easier if we don't think about group chat)
 * Testing on AWS console is easier
 * SQL is better because all the messages have the same format
+* When you encounter AWS EC2 address limit exceeded, release elastic ip on console.
 
 ## References
 
@@ -46,3 +47,4 @@ The `cdk.json` file tells the CDK Toolkit how to execute your app.
 ### Database Query
 
 * https://stackoverflow.com/questions/25536422/optimize-group-by-query-to-retrieve-latest-row-per-user
+

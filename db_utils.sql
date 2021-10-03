@@ -88,3 +88,21 @@ WHERE conversation_id = '742a36e4-66ac-4a32-9561-a672a73d4de9'
 ORDER BY sent_at DESC NULLS LAST
 LIMIT 10
 OFFSET 0
+
+-- SQL query for getting is_read messsages for conversation
+SELECT * FROM message_is_read_table
+INNER JOIN message_table USING (message_id)
+WHERE conversation_id = '742a36e4-66ac-4a32-9561-a672a73d4de9'
+
+-- SQL query for updating is_read
+UPDATE message_is_read_table AS r
+SET is_read = TRUE
+FROM (
+    SELECT * FROM message_table
+    WHERE conversation_id = '742a36e4-66ac-4a32-9561-a672a73d4de9'
+) m
+WHERE m.message_id = r.message_id AND is_read = FALSE
+    AND user_id = '543449a2-9225-479e-bf0c-c50da6b16b7c'
+
+-- SQL query for getting participants in a conversation
+SELECT user_id FROM participant_table WHERE conversation_id = '742a36e4-66ac-4a32-9561-a672a73d4de9'
