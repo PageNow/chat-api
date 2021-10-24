@@ -216,7 +216,7 @@ export class ChatApiStack extends CDK.Stack {
         // not test function, not use redis, not use user db
         [
             'get_user_conversations', 'get_conversation_messages', 'get_conversation_participants',
-            'get_user_direct_conversation', 'create_conversation',
+            'get_user_direct_conversation', 'create_conversation', 'get_conversation'
         ].forEach(
             (fn) => { this.addFunction(fn) }
         );
@@ -224,6 +224,7 @@ export class ChatApiStack extends CDK.Stack {
         // test function, not use redis, use user db
         [
             'add_users', 'add_friendship', 'add_conversations', 'add_messages',
+            'test_create_conversation'
         ].forEach(
             (fn) => { this.addFunction(fn, true, false, true) }
         );
@@ -280,8 +281,13 @@ export class ChatApiStack extends CDK.Stack {
             'GET',
             new ApiGateway.LambdaIntegration(this.getFn('get_user_conversations'), { proxy: true })
         );
-        // get conversation messages of conversationId - path: /conversations/{conversationId}/messages
+        // get conversation of the given conversationId - path: /conversations/{conversationId}
         const conversationsIdResource = conversationsResource.addResource('{conversationId}');
+        conversationsIdResource.addMethod(
+            'GET',
+            new ApiGateway.LambdaIntegration(this.getFn('get_conversation'), { proxy: true })
+        );
+        // get conversation messages of conversationId - path: /conversations/{conversationId}/messages
         const conversationMessagesResource = conversationsIdResource.addResource('messages');
         conversationMessagesResource.addMethod(
             'GET',

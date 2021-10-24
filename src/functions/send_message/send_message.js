@@ -105,6 +105,7 @@ exports.handler = async function(event) {
     // get connectionId for all the participants
     let connectionDataArr = [];
     try {
+        // guaranteed to be at least one participant in conversation
         const connectionIdArr = await hmget("chat_connection", participantIdArr);
         connectionDataArr = connectionIdArr.map((x, i) => {
             return { participantId: participantIdArr[i], connectionId: x };

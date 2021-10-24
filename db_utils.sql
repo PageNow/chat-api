@@ -1,3 +1,14 @@
+-- SQL query fro get_conversation
+WITH conversation AS (
+    SELECT * FROM conversation_table
+    WHERE conversation_id = 'f5b428ff-2521-4d1b-bc8f-959e5e726ff0'
+)
+SELECT conversation_id, title, is_group, p.user_id AS "participant_id"
+FROM conversation
+INNER JOIN (
+    SELECT * FROM participant_table WHERE user_id != '543449a2-9225-479e-bf0c-c50da6b16b7c'
+) p USING (conversation_id)
+
 -- SQL query for get_user_direct_converastion between user1 and user2
 WITH user_participant AS (
         SELECT * FROM participant_table

@@ -1,7 +1,6 @@
 const { getPublicKeys, decodeVerifyJwt } = require('/opt/nodejs/decode-verify-jwt');
 const {
-    authErrorResponse, unauthErrorResposne, serverErrorResponse,
-    corsResponseHeader, missingBodyResponse, missingParameterResponse
+    authErrorResponse, serverErrorResponse, corsResponseHeader, missingParameterResponse
 } = require('/opt/nodejs/utils');
 
 const db = require('data-api-client')({
@@ -41,17 +40,17 @@ exports.handler = async function(event) {
         const result = await db.query(`
             WITH user_participant AS (
                     SELECT * FROM participant_table
-                    WHERE user_id = '543449a2-9225-479e-bf0c-c50da6b16b7c'
+                    WHERE user_id = :userId
                 ), target_user_participant AS (
                     SELECT * FROM participant_table
-                    WHERE user_id = 'f39fbebb-d4c0-4520-9eb3-2cf5fdb734e2'
+                    WHERE user_id = :targetUserId
                 ), pair_participant AS (
                     SELECT *
                     FROM user_participant AS u
                         INNER JOIN target_user_participant AS t
                         USING (conversation_id)
                 )
-            SELECT conversation_id
+            SELECT conversation_id AS "conversationId"
             FROM participant_table
             WHERE conversation_id IN (SELECT conversation_id FROM pair_participant)
             GROUP BY conversation_id
@@ -61,7 +60,7 @@ exports.handler = async function(event) {
         return {
             statusCode: 200,
             headers: corsResponseHeader,
-            body: JSON.stringify(result.records)
+            body: JSON.stringify(result.records[0])
         };
     } catch (error) {
         console.log(error);

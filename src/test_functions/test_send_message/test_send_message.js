@@ -35,6 +35,10 @@ exports.handler = async function(event) {
     if (domainName === undefined || domainName === null) {
         throw new Error("Missing 'domainName' in event");
     }
+    const stage = event && event.stage;
+    if (stage === undefined || stage === null) {
+        throw new Error("Missing 'stage' in event");
+    }
 
     const sentAt = new Date(Date.now()).toISOString();
     const messageId = uuidv4();
@@ -97,7 +101,7 @@ exports.handler = async function(event) {
     // post message to all connections in the conversation
     const apigwManagementApi = new AWS.ApiGatewayManagementApi({
         apiVersion: '2018-11-29',
-        endpoint: domainName + '/' + 'dev'
+        endpoint: domainName + '/' + stage
     });
     const postCalls = connectionDataArr.map(async ({ participantId, connectionId }) => {
         try {
