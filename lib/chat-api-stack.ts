@@ -182,7 +182,7 @@ export class ChatApiStack extends CDK.Stack {
         this.dbCluster = new RDS.ServerlessCluster(this, 'ChatCluster', {
             engine: RDS.DatabaseClusterEngine.AURORA_POSTGRESQL,
             parameterGroup: RDS.ParameterGroup.fromParameterGroupName(this, 'ParameterGroup', 'default.aurora-postgresql10'),
-            vpc,
+            vpc: this.vpc,
             scaling: {
                 autoPause: CDK.Duration.minutes(5), // default is to pause after 5 minutes of idle time
                 minCapacity: RDS.AuroraCapacityUnit.ACU_2, // default is 2 Aurora capacity units (ACUs)
