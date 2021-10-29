@@ -82,7 +82,7 @@ exports.handler = async function(event) {
     // get connectionId for current user
     let connectionId;
     try {
-        connectionId = await hget("chat_connection", userId);
+        connectionId = await hget("chat_user_connection", userId);
     } catch (error) {
         console.log(error);
         return serverErrorResponse;
@@ -107,7 +107,8 @@ exports.handler = async function(event) {
         console.log(error);
         if (error.statusCode === 410) {
             console.log(`Found stale connection, deleting ${connectionId}`);
-            await hdel("chat_connection", connectionId).promise();
+            await hdel("chat_connection_user", connectionId).promise();
+            await hdel("chat_user_connection", userId).promise();
         } else {
             throw error;
         }

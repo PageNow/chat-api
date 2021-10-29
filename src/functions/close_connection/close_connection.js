@@ -10,7 +10,7 @@ const hget = promisify(redisChat.hget).bind(redisChat);
 exports.handler = async function(event) {
     try {
         const userId = await hget("chat_connection_user", event.requestContext.connectionId);
-        await hdel("chat_connection", userId);
+        await hdel("chat_user_connection", userId);
     } catch (error) {
         console.log(error);
         return { statusCode: 500, body: 'Redis error: ' + JSON.stringify(error) };
@@ -19,5 +19,5 @@ exports.handler = async function(event) {
     return {
         statusCode: 200,
         body: JSON.stringify({ connectionId: event.requestContext.connectionId })
-    }
+    };
 };

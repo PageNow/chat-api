@@ -88,7 +88,7 @@ exports.handler = async function(event) {
     // get connectionId for all the participants
     let connectionDataArr = [];
     try {
-        const connectionIdArr = await hmget("chat_connection", participantIdArr);
+        const connectionIdArr = await hmget("chat_user_connection", participantIdArr);
         connectionDataArr = connectionIdArr.map((x, i) => {
             return { participantId: participantIdArr[i], connectionId: x };
         }).filter(x => x.connectionId);
@@ -121,7 +121,8 @@ exports.handler = async function(event) {
             console.log(error);
             if (error.statusCode === 410) {
                 console.log(`Found stale connection, deleting ${connectionId}`);
-                await hdel("chat_connection", participantId).promise();
+                await hdel("chat_user_connection", participantId).promise();
+                await hdel("chat_connection_user", connectionId).promise();
             } else {
                 throw error;
             }

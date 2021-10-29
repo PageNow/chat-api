@@ -17,7 +17,7 @@ const user2 = {
 };
 
 const user3 = {
-    user_id: "google_117429865182265482928",
+    user_id: "google_337456865285275482928",
     email: "zzisu@gmail.com",
     first_name: "Jisoo",
     last_name: "Lee",
@@ -167,6 +167,12 @@ module.exports = {
     user2: user2,
     user3: user3,
     user4: user4,
+    user5: user5,
+    user6: user6,
+    user7: user7,
+    user8: user8,
+    user9: user9,
+    user10: user10,
     conversation1: conversation1,
     conversation2: conversation2,
     conversation3: conversation3,

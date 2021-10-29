@@ -5,7 +5,6 @@ const { getPublicKeys, decodeVerifyJwt } = require('/opt/nodejs/decode-verify-jw
 const redisChatEndpoint = process.env.REDIS_HOST || 'host.docker.internal';
 const redisChatPort = process.env.REDIS_PORT || 6379;
 const redisChat = redis.createClient(redisChatPort, redisChatEndpoint);
-const hset = promisify(redisChat.hset).bind(redisChat);
 
 let cacheKeys;
 
@@ -29,8 +28,11 @@ exports.handler = async function(event) {
 
     // update connectId
     try {
-        await hset("chat_connection", userId, event.requestContext.connectionId);
-        console.log('updated connectId');
+        const commands = redisChat.multi();
+        commands.hset("chat_user_connection", userId, event.requestContext.connectionId);
+        commands.hset("chat_connection_user", event.requestContext.connectionId, userId);
+        const execute = promisify(commands.exec).bind(commands);
+        await execute();
     } catch (error) {
         console.log(error);
         return { statusCode: 500, body: 'Redis error: ' + JSON.stringify(error) };
