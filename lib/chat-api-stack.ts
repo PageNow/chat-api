@@ -253,7 +253,9 @@ export class ChatApiStack extends CDK.Stack {
                 ],
                 allowMethods: ['OPTIONS', 'GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
                 allowCredentials: true,
-                allowOrigins: ['http://localhost:4200'],
+                allowOrigins: [
+                    'http://localhost:4200'
+                ].concat(process.env.CLIENT_URL ? [process.env.CLIENT_URL] : [])
             },
         });
 
