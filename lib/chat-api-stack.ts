@@ -184,17 +184,12 @@ export class ChatApiStack extends CDK.Stack {
             parameterGroup: RDS.ParameterGroup.fromParameterGroupName(this, 'ParameterGroup', 'default.aurora-postgresql10'),
             vpc,
             scaling: {
-                autoPause: CDK.Duration.minutes(5), // default is to pause after 5 minutes of idle time
+                autoPause: CDK.Duration.minutes(0), // default is to pause after 5 minutes of idle time
                 minCapacity: RDS.AuroraCapacityUnit.ACU_2, // default is 2 Aurora capacity units (ACUs)
                 maxCapacity: RDS.AuroraCapacityUnit.ACU_4, // default is 16 Aurora capacity units (ACUs)
             },
             defaultDatabaseName: DB_NAME
         });
-
-        /**
-         * Retrieve existing user pool
-         */
-        const userPool = Cognito.UserPool.fromUserPoolId(this, 'pagenow-userpool', COGNITO_POOL_ID!);
 
         /**
          * Create Lambda functions
@@ -237,6 +232,12 @@ export class ChatApiStack extends CDK.Stack {
         );
 
         /**
+         * User Pool
+         */
+        const userPool = Cognito.UserPool.fromUserPoolId(this, 'PagenowUserpool',
+            process.env.COGNITO_POOL_ID!);
+
+        /**
          * API Gateway for chat REST endpoint
          */
         const restApi = new ApiGateway.RestApi(this, 'ChatRestApi', {
@@ -259,47 +260,79 @@ export class ChatApiStack extends CDK.Stack {
             },
         });
 
+        // Authorizer
+        const authorizer = new ApiGateway.CfnAuthorizer(this, 'ChatRestApiAuthorizer', {
+            restApiId: restApi.restApiId,
+            name: 'ChatRestApiAuthorizer',
+            type: 'COGNITO_USER_POOLS',
+            identitySource: 'method.request.header.Authorization',
+            providerArns: [ userPool.userPoolArn ]
+        });
+        const authorizerMethodOption = {
+            authorizationType: ApiGateway.AuthorizationType.COGNITO,
+            authorizer: {
+                authorizerId: authorizer.ref
+            }
+        };
+
         /**
          * REST Api Endpoint Definitions
          */
-
         // create conversation - path: /conversation
         const conversationResource = restApi.root.addResource('conversation');
         conversationResource.addMethod(
             'POST',
-            new ApiGateway.LambdaIntegration(this.getFn('create_conversation'), { proxy: true })
+            new ApiGateway.LambdaIntegration(
+                this.getFn('create_conversation'), { proxy: true }
+            ),
+            authorizerMethodOption
         );
         // get direct (one-to-one) conversation - path: /conversation/direct/{userId}
         const directConversationResource = conversationResource.addResource('direct');
         const directConversationUserResource = directConversationResource.addResource('{userId}');
         directConversationUserResource.addMethod(
             'GET',
-            new ApiGateway.LambdaIntegration(this.getFn('get_user_direct_conversation'), { proxy: true })
+            new ApiGateway.LambdaIntegration(
+                this.getFn('get_user_direct_conversation'), { proxy: true }
+            ),
+            authorizerMethodOption
         );
 
         // get all conversations of the request user - path: /conversations
         const conversationsResource = restApi.root.addResource('conversations');
         conversationsResource.addMethod(
             'GET',
-            new ApiGateway.LambdaIntegration(this.getFn('get_user_conversations'), { proxy: true })
+            new ApiGateway.LambdaIntegration(
+                this.getFn('get_user_conversations'), { proxy: true }
+            ),
+            authorizerMethodOption
         );
         // get conversation of the given conversationId - path: /conversations/{conversationId}
         const conversationsIdResource = conversationsResource.addResource('{conversationId}');
         conversationsIdResource.addMethod(
             'GET',
-            new ApiGateway.LambdaIntegration(this.getFn('get_conversation'), { proxy: true })
+            new ApiGateway.LambdaIntegration(
+                this.getFn('get_conversation'), { proxy: true }
+            ),
+            authorizerMethodOption
         );
         // get conversation messages of conversationId - path: /conversations/{conversationId}/messages
         const conversationMessagesResource = conversationsIdResource.addResource('messages');
         conversationMessagesResource.addMethod(
             'GET',
-            new ApiGateway.LambdaIntegration(this.getFn('get_conversation_messages'), { proxy: true })
+            new ApiGateway.LambdaIntegration(
+                this.getFn('get_conversation_messages'), { proxy: true }
+            ),
+            authorizerMethodOption
         );
         // get conversation participants of conversationId - path: /conversations/{conversationId}/participants
         const conversationParticipantsResource = conversationsIdResource.addResource('participants');
         conversationParticipantsResource.addMethod(
             'GET',
-            new ApiGateway.LambdaIntegration(this.getFn('get_conversation_participants'), { proxy: true })
+            new ApiGateway.LambdaIntegration(
+                this.getFn('get_conversation_participants'), { proxy: true }
+            ),
+            authorizerMethodOption
         );
 
         /**
@@ -327,22 +360,32 @@ export class ChatApiStack extends CDK.Stack {
                 handler: this.getFn('read_messages')
             })
         });
-        const apiStage = new ApiGatewayV2.WebSocketStage(this, 'DevStage', {
+        const apiStageDev = new ApiGatewayV2.WebSocketStage(this, 'DevStage', {
             webSocketApi,
-            stageName: process.env.WEBSOCKET_API_DEPLOY_STAGE!,
-            autoDeploy: true,
+            stageName: process.env.WEBSOCKET_API_DEPLOY_DEV_STAGE!,
+            autoDeploy: true
         });
-        const connectionsArns = this.formatArn({
+        const apiStageProd = new ApiGatewayV2.WebSocketStage(this, 'ProdStage', {
+            webSocketApi,
+            stageName: process.env.WEBSOCKET_API_DEPLOY_PROD_STAGE!,
+            autoDeploy: false
+        });
+        const connectionsArnsDev = this.formatArn({
             service: 'execute-api',
-            resourceName: `${apiStage.stageName}/POST/*`,
+            resourceName: `${apiStageDev.stageName}/POST/*`,
             resource: webSocketApi.apiId,
+        });
+        const connectionsArnsProd = this.formatArn({
+            service: 'execute-api',
+            resourceName: `${apiStageProd.stageName}/POST/*`,
+            resource: webSocketApi.apiId
         });
 
         [ 'send_message', 'read_messages', 'test_send_message' ].forEach(fn => {
             this.getFn(fn).addToRolePolicy(
                 new IAM.PolicyStatement({
                     actions: ['execute-api:ManageConnections'],
-                    resources: [connectionsArns]
+                    resources: [connectionsArnsDev, connectionsArnsProd]
                 })
             )
         });

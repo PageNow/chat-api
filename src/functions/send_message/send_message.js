@@ -1,8 +1,7 @@
 const { promisify } = require('util');
 const redis = require('redis');
-const { getPublicKeys, decodeVerifyJwt } = require('/opt/nodejs/decode-verify-jwt');
 const {
-    authErrorResponse, unauthErrorResposne, serverErrorResponse,
+    unauthErrorResposne, serverErrorResponse,
     corsResponseHeader, missingBodyResponse
 } = require('/opt/nodejs/utils');
 const { v4: uuidv4 } = require('uuid');
@@ -13,6 +12,7 @@ const redisChatPort = process.env.REDIS_PORT || 6379;
 const redisChat = redis.createClient(redisChatPort, redisChatEndpoint);
 const hmget = promisify(redisChat.hmget).bind(redisChat);
 const hdel = promisify(redisChat.hdel).bind(redisChat);
+const hget = promisify(redisChat.hget).bind(redisChat);
 
 const db = require('data-api-client')({
     secretArn: process.env.DB_SECRET_ARN,
@@ -20,29 +20,14 @@ const db = require('data-api-client')({
     database: process.env.DB_NAME
 });
 
-let cacheKeys;
-
 exports.handler = async function(event) {
     const eventData = JSON.parse(event.body);
     console.log('eventData', eventData);
-    if (eventData.jwt === undefined || eventData.jwt === null) {
-        return missingBodyResponse('jwt');
+    const userId = await hget("chat_connection_user", event.requestContext.connectionId);
+    if (userId == null || userId == undefined) {
+        return { statusCode: 500, body: 'Authentication error' };
     }
-    let userId;
-    try {
-        if (!cacheKeys) {
-            cacheKeys = await getPublicKeys();
-        }
-        const decodedJwt = await decodeVerifyJwt(eventData.jwt, cacheKeys);
-        if (!decodedJwt || !decodedJwt.isValid || decodedJwt.username === '') {
-            return authErrorResponse;
-        }
-        userId = decodedJwt.username;
-    } catch (error) {
-        console.log(error);
-        return authErrorResponse;
-    }
-    console.log(userId);
+    console.log('connection userId', userId);
 
     if (eventData.tempMessageId === undefined || eventData.tempMessageId === null) {
         return missingBodyResponse('tempMessageId');

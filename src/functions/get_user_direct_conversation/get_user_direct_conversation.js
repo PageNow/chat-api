@@ -1,6 +1,6 @@
-const { getPublicKeys, decodeVerifyJwt } = require('/opt/nodejs/decode-verify-jwt');
+const jwt = require('jsonwebtoken');
 const {
-    authErrorResponse, serverErrorResponse, corsResponseHeader, missingParameterResponse
+    serverErrorResponse, corsResponseHeader, missingParameterResponse
 } = require('/opt/nodejs/utils');
 
 const db = require('data-api-client')({
@@ -9,28 +9,13 @@ const db = require('data-api-client')({
     database: process.env.DB_NAME
 });
 
-let cacheKeys;
-
 /**
  * Returns the id of the direct conversation (in which only the user and 
  * input user participates) if one exists.
  */
 exports.handler = async function(event) {
-    let userId;
-    try {
-        if (!cacheKeys) {
-            cacheKeys = await getPublicKeys();
-        }
-        const decodedJwt = await decodeVerifyJwt(event.headers.Authorization, cacheKeys);
-        if (!decodedJwt || !decodedJwt.isValid || decodedJwt.username === '') {
-            return authErrorResponse;
-        }
-        userId = decodedJwt.username;
-    } catch (error) {
-        console.log(error);
-        return authErrorResponse;
-    }
-
+    const jwtDecoded = jwt.decode(event.headers['Authorization']);
+    const userId = jwtDecoded['cognito:username'];
     const targetUserId = event.pathParameters.userId;
     if (targetUserId === undefined || targetUserId === null) {
         return missingParameterResponse('targetUserId');

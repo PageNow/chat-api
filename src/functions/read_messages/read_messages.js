@@ -1,9 +1,8 @@
 const { promisify } = require('util');
 const redis = require('redis');
-const { getPublicKeys, decodeVerifyJwt } = require('/opt/nodejs/decode-verify-jwt');
 const AWS = require('aws-sdk');
 const {
-    authErrorResponse, unauthErrorResposne, serverErrorResponse,
+    unauthErrorResposne, serverErrorResponse,
     corsResponseHeader, missingBodyResponse
 } = require('/opt/nodejs/utils');
 
@@ -19,29 +18,13 @@ const db = require('data-api-client')({
     database: process.env.DB_NAME
 });
 
-let cacheKeys;
-
 exports.handler = async function(event) {
     const eventData = JSON.parse(event.body);
     console.log('eventData', eventData);
-    if (eventData.jwt === undefined || eventData.jwt === null) {
-        return missingBodyResponse('jwt');
+    const userId = await hget("chat_connection_user", event.requestContext.connectionId);
+    if (userId == null || userId == undefined) {
+        return { statusCode: 500, body: 'Authentication error' };
     }
-    let userId;
-    try {
-        if (!cacheKeys) {
-            cacheKeys = await getPublicKeys();
-        }
-        const decodedJwt = await decodeVerifyJwt(eventData.jwt, cacheKeys);
-        if (!decodedJwt || !decodedJwt.isValid || decodedJwt.username === '') {
-            return authErrorResponse;
-        }
-        userId = decodedJwt.username;
-    } catch (error) {
-        console.log(error);
-        return authErrorResponse;
-    }
-
     if (eventData.conversationId === undefined || eventData.conversationId === null) {
         return missingBodyResponse('conversationId');
     }

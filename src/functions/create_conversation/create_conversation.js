@@ -1,7 +1,7 @@
-const { getPublicKeys, decodeVerifyJwt } = require('/opt/nodejs/decode-verify-jwt');
+const jwt = require('jsonwebtoken');
 const {
-    authErrorResponse, serverErrorResponse,
-    corsResponseHeader, missingBodyResponse, invalidParameterResponse
+    serverErrorResponse, corsResponseHeader,
+    missingBodyResponse, invalidParameterResponse
 } = require('/opt/nodejs/utils');
 const { v4: uuidv4 } = require('uuid');
 const AWS = require('aws-sdk');
@@ -12,23 +12,9 @@ const db = require('data-api-client')({
     database: process.env.DB_NAME
 });
 
-let cacheKeys;
-
 exports.handler = async function(event) {
-    let userId;
-    try {
-        if (!cacheKeys) {
-            cacheKeys = await getPublicKeys();
-        }
-        const decodedJwt = await decodeVerifyJwt(event.headers.Authorization, cacheKeys);
-        if (!decodedJwt || !decodedJwt.isValid || decodedJwt.username === '') {
-            return authErrorResponse;
-        }
-        userId = decodedJwt.username;
-    } catch (error) {
-        console.log(error);
-        return authErrorResponse;
-    }
+    const jwtDecoded = jwt.decode(event.headers['Authorization']);
+    const userId = jwtDecoded['cognito:username'];
     
     let eventBody = {};
     if (event.body) {
