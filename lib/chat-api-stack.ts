@@ -211,7 +211,8 @@ export class ChatApiStack extends CDK.Stack {
         // not test function, not use redis, not use user db
         [
             'get_user_conversations', 'get_conversation_messages', 'get_conversation_participants',
-            'get_user_direct_conversation', 'create_conversation', 'get_conversation'
+            'get_user_direct_conversation', 'create_conversation', 'get_conversation',
+            'heartbeat'
         ].forEach(
             (fn) => { this.addFunction(fn) }
         );
@@ -358,6 +359,11 @@ export class ChatApiStack extends CDK.Stack {
         webSocketApi.addRoute('read-messages', {
             integration: new ApiGatewayIntegrations.LambdaWebSocketIntegration({
                 handler: this.getFn('read_messages')
+            })
+        });
+        webSocketApi.addRoute('heartbeat', {
+            integration: new ApiGatewayIntegrations.LambdaWebSocketIntegration({
+                handler: this.getFn('heartbeat')
             })
         });
         const apiStageDev = new ApiGatewayV2.WebSocketStage(this, 'DevStage', {
