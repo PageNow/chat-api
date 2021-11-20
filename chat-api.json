@@ -1,7 +1,7 @@
 {
   "ChatApiStack": {
-    "websocketApiUrl": "wss://flcjayqju0.execute-api.us-west-2.amazonaws.com",
-    "ChatRestApiEndpointCFDC441D": "https://9vd7f83qjk.execute-api.us-west-2.amazonaws.com/dev/",
-    "restApiUrl": "https://9vd7f83qjk.execute-api.us-west-2.amazonaws.com/dev/"
+    "websocketApiUrl": "wss://rlz53bbvnb.execute-api.us-west-2.amazonaws.com",
+    "ChatRestApiEndpointCFDC441D": "https://y9e1f4zaea.execute-api.us-west-2.amazonaws.com/prod/",
+    "restApiUrl": "https://y9e1f4zaea.execute-api.us-west-2.amazonaws.com/prod/"
   }
 }
