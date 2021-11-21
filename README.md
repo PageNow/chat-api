@@ -1,5 +1,9 @@
 # chat-api
 
+Link to Chrome Web Store: https://chrome.google.com/webstore/detail/pagenow/lplobiaakhgkjcldopgkbcibeilddbmc
+
+Chat API provides chat functionalities. It provides websocket endpoint to retrieve and send messages in real-time and provides REST endpoint to retreive conversations or message history.
+
 ## Architecture
 
 ### Architecture Overview Diagram
