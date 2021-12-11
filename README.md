@@ -36,6 +36,10 @@ We use serverless Aurora Postgres for easier autoscaling. It stores all the data
 
 * `message_is_read_table` stores data of whether a user read a message or not. Its purpose is to indicate whether a user has unread messages or not.
 
+The SQL diagram is as follows.
+
+![sql diagram](./images/sql_diagram.png)
+
 ### AWS Lambda
 
 It provides all the chat functionalities with serverless framework.
@@ -78,7 +82,8 @@ COGNITO_REGION=<AWS region>
 COGNITO_POOL_ID=<AWS Cognito User Pool Id>
 
 VPC_ID=<VPC of the backend>
-PRIVATE_ROUTE_TABLE_ID=<Route Table id of subnets AWS RDS resides in>
+PRIVATE_ROUTE_TABLE1_ID=<Route Table1 id of subnets AWS RDS resides in>
+PRIVATE_ROUTE_TABLE2_ID=<Route Table2 id of subnets AWS RDS resides in>
 PRIVATE_SUBNET1_ID=<Id of subnet1 AWS RDS resides in>
 PRIVATE_SUBNET2_ID=<Id of subnet2 AWS RDS resides in>
 
