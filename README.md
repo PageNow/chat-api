@@ -1,6 +1,9 @@
-# chat-api
+[한국어 README.md](./README_KO.md)
 
-Link to Chrome Web Store: https://chrome.google.com/webstore/detail/pagenow/lplobiaakhgkjcldopgkbcibeilddbmc
+PageNow Home Page: https://pagenow.io <br/>
+PageNow Chrome Web Store: https://chrome.google.com/webstore/detail/pagenow/lplobiaakhgkjcldopgkbcibeilddbmc
+
+# Chat API
 
 Chat API provides chat functionalities. It provides websocket endpoint to retrieve and send messages in real-time and provides REST endpoint to retreive conversations or message history.
 
@@ -22,15 +25,15 @@ Chat API provides chat functionalities. It provides websocket endpoint to retrie
 * The schema is defined in [user-api](https://github.com/PageNow/user-api).
 * The permission for Lambda to access AWS RDS Postgres is set up in `lib/chat-api-stack.ts.`
 
-### AWS Elasticache
+### AWS Elasticache (Redis)
 
 We use a single REDIS cluster with two fields - `chat_user_connection`, `chat_connection_user`.
 
 * `chat_user_connection` stores { user_id: connection_id } and `chat_connection_user` stores { connection_id: user_id }. They are used to manage connection ids for each user.
 
-### AWS Aurora (Postgres Serverless)
+### AWS Aurora (PostgreSQL Serverless)
 
-We use serverless Aurora Postgres for easier autoscaling. It stores all the data related to chat functionalities. The table definition is written `db_init.sql`.
+We use serverless Aurora PostgreSQL for easier auto-scaling. It stores all the data related to chat functionalities. The table definition is written [db_init.sql](./db_init.sql).
 
 * `conversation_table` stores metadata about each conversation.
 
@@ -44,7 +47,7 @@ The SQL diagram is as follows.
 
 ![sql diagram](./images/sql_diagram.png)
 
-### AWS Lambda
+### AWS Lambda Function
 
 It provides all the chat functionalities with serverless framework.
 
@@ -136,28 +139,4 @@ Refer to https://docs.aws.amazon.com/cdk/latest/guide/bootstrapping.html for mor
 ## Tests
 
 Note that tests are not functional right now. They are to be updated soon.
-
-## References
-
-* https://docs.aws.amazon.com/cdk/api/latest/docs/aws-appsync-readme.html#Object-Types
-* https://aws.amazon.com/ko/blogs/mobile/building-scalable-graphql-apis-on-aws-with-cdk-and-aws-appsync/
-* https://www.theelastic.guru/rosius/build-a-graphql-api-on-aws-with-cdk-python-appsync-and-dynamodb-part-1-1pjl
-
-
-### CDK-DynamoDB
-
-* https://docs.aws.amazon.com/cdk/api/latest/docs/aws-dynamodb-readme.html#amazon-dynamodb-construct-library
-* https://appsync-immersionday.workshop.aws/lab1/2_deploy-with-cdk.html
-* https://docs.aws.amazon.com/cdk/api/latest/python/aws_cdk.aws_appsync/README.html
-* https://github.com/aws-samples/aws-cdk-examples/blob/master/typescript/appsync-graphql-dynamodb/index.ts
-* https://medium.com/@sam.goodwin1989/type-safe-infrastructure-part-2-graphql-apis-with-aws-appsync-d1225e4e21e3
-* https://www.itonaut.com/2018/12/02/define-apigateway-lambda-and-dynamodb-using-aws-cdk/
-
-### AppSync
-
-* https://www.youtube.com/watch?v=j1XghMd1X_I
-
-### Database Query
-
-* https://stackoverflow.com/questions/25536422/optimize-group-by-query-to-retrieve-latest-row-per-user
 
